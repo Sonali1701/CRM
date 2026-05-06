@@ -3,6 +3,7 @@ from app.models.lead import Lead, LeadStatus
 from app.models.client import Client, Contact, ClientType
 from app.models.deal import Deal, DealStage
 from app.models.activity import Activity, ActivityType
+from app.models.login_event import LoginEvent
 
 __all__ = [
     "User",
@@ -16,4 +17,5 @@ __all__ = [
     "DealStage",
     "Activity",
     "ActivityType",
+    "LoginEvent",
 ]

@@ -20,9 +20,40 @@ app.include_router(pipeline.router)
 app.include_router(imports.router, prefix="/import")
 
 
+@app.on_event("startup")
+def auto_create_admin():
+    """Create the first admin user on startup if ADMIN_EMAIL + ADMIN_PASSWORD are set and DB is empty."""
+    from app.config import get_settings
+    from app.database import SessionLocal
+    from app.models import User
+    from app.models.user import UserRole
+    from app.security import hash_password
+
+    settings = get_settings()
+    if not settings.admin_email or not settings.admin_password:
+        return
+
+    db = SessionLocal()
+    try:
+        if db.query(User).count() == 0:
+            admin = User(
+                email=settings.admin_email.lower().strip(),
+                full_name=settings.admin_name,
+                password_hash=hash_password(settings.admin_password),
+                role=UserRole.ADMIN,
+            )
+            db.add(admin)
+            db.commit()
+            print(f"[startup] Admin user created: {settings.admin_email}")
+        else:
+            print(f"[startup] Users already exist — skipping auto-create.")
+    finally:
+        db.close()
+
+
 @app.exception_handler(AuthRedirect)
 async def auth_redirect_handler(request: Request, _exc: AuthRedirect):
-    return RedirectResponse(f"/login", status_code=303)
+    return RedirectResponse("/login", status_code=303)
 
 
 @app.middleware("http")

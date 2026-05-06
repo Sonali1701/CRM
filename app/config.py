@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     env: str = "development"
     session_cookie_name: str = "crm_session"
     session_max_age_seconds: int = 60 * 60 * 24 * 14  # 14 days
+    # Auto-create first admin on startup if DB is empty
+    admin_email: str = ""
+    admin_password: str = ""
+    admin_name: str = "Admin"
 
 
 @lru_cache

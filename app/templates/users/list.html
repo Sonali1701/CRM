@@ -1,20 +1,49 @@
 {% extends "base.html" %}
 {% block title %}Users – Radixsol CRM{% endblock %}
 {% block content %}
-<div class="mb-4 flex items-center justify-between">
-  <h1 class="text-xl font-semibold">Users</h1>
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-slate-900">Users</h1>
+    <p class="text-sm text-slate-500 mt-0.5">Manage team access and roles</p>
+  </div>
+  <a href="/users/activity" class="btn btn-secondary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Login Activity
+  </a>
 </div>
 
-<div class="grid md:grid-cols-3 gap-6">
-  <div class="md:col-span-2 card overflow-hidden">
+<div class="grid lg:grid-cols-3 gap-6">
+  <!-- User table -->
+  <div class="lg:col-span-2 card overflow-hidden">
     <table class="crm">
-      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+      <thead>
+        <tr><th>User</th><th>Role</th><th>Last Login</th><th>Status</th><th></th></tr>
+      </thead>
       <tbody>
         {% for u in users %}
+          {% set ev = last_logins.get(u.id) %}
           <tr>
-            <td class="font-medium">{{ u.full_name }}</td>
-            <td class="text-slate-500">{{ u.email }}</td>
-            <td><span class="badge bg-slate-100 text-slate-700">{{ u.role.value }}</span></td>
+            <td>
+              <div class="flex items-center gap-3">
+                <div class="avatar text-white text-xs"
+                  style="background:hsl({{ (u.full_name | length * 47) % 360 }},50%,55%)">
+                  {{ u.full_name[:2].upper() }}
+                </div>
+                <div>
+                  <p class="font-medium text-slate-900">{{ u.full_name }}</p>
+                  <p class="text-xs text-slate-400">{{ u.email }}</p>
+                </div>
+              </div>
+            </td>
+            <td><span class="badge badge-{{ u.role.value }}">{{ u.role.value | humanize }}</span></td>
+            <td class="text-sm text-slate-500">
+              {% if ev %}
+                {{ ev.logged_in_at | date }}
+                {% if ev.ip_address %}<span class="text-xs text-slate-400 ml-1">· {{ ev.ip_address }}</span>{% endif %}
+              {% else %}
+                <span class="text-slate-400">Never</span>
+              {% endif %}
+            </td>
             <td>
               {% if u.is_active %}
                 <span class="badge bg-green-100 text-green-700">Active</span>
@@ -22,13 +51,30 @@
                 <span class="badge bg-red-100 text-red-600">Inactive</span>
               {% endif %}
             </td>
-            <td class="flex gap-3">
+            <td>
               {% if u.id != user.id %}
-                <form method="post" action="/users/{{ u.id }}/toggle">
-                  <button class="text-xs text-slate-500 hover:text-slate-800">
-                    {{ 'Deactivate' if u.is_active else 'Activate' }}
+                <div class="flex gap-1" x-data="{ open: false }">
+                  <button @click="open=!open" class="btn btn-ghost btn-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                   </button>
-                </form>
+                  <div x-show="open" @click.outside="open=false" x-cloak
+                    class="absolute right-8 mt-6 z-10 bg-white border border-slate-200 rounded-lg shadow-lg text-sm w-40">
+                    <form method="post" action="/users/{{ u.id }}/toggle">
+                      <button class="w-full text-left px-4 py-2 hover:bg-slate-50">
+                        {{ 'Deactivate' if u.is_active else 'Activate' }}
+                      </button>
+                    </form>
+                    <hr class="border-slate-100" />
+                    <div x-data="{ resetting: false }">
+                      <button @click="resetting=true" class="w-full text-left px-4 py-2 hover:bg-slate-50 text-orange-600">Reset Password</button>
+                      <form x-show="resetting" method="post" action="/users/{{ u.id }}/reset-password" class="px-3 pb-2">
+                        <input type="password" name="new_password" required minlength="8"
+                          placeholder="New password" class="input text-xs mt-1" />
+                        <button type="submit" class="btn btn-danger btn-sm w-full mt-1">Set Password</button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
               {% endif %}
             </td>
           </tr>
@@ -37,28 +83,31 @@
     </table>
   </div>
 
+  <!-- Add user form -->
   <div class="card p-5">
-    <h2 class="font-medium mb-4 text-sm">Add New User</h2>
+    <h2 class="font-semibold text-slate-900 mb-4">Add New User</h2>
     <form method="post" action="/users/new" class="space-y-3">
       <div>
-        <label class="block text-sm font-medium mb-1">Full Name</label>
-        <input name="full_name" required class="input" />
+        <label class="label">Full Name</label>
+        <input name="full_name" required class="input" placeholder="Jane Smith" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Email</label>
-        <input type="email" name="email" required class="input" />
+        <label class="label">Email</label>
+        <input type="email" name="email" required class="input" placeholder="jane@radixsol.com" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Password</label>
-        <input type="password" name="password" required minlength="8" class="input" />
+        <label class="label">Password</label>
+        <input type="password" name="password" required minlength="8" class="input" placeholder="Min 8 characters" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Role</label>
+        <label class="label">Role</label>
         <select name="role" class="select">
-          {% for r in roles %}<option value="{{ r.value }}">{{ r.value | humanize }}</option>{% endfor %}
+          {% for r in roles %}
+            <option value="{{ r.value }}">{{ r.value | humanize }}</option>
+          {% endfor %}
         </select>
       </div>
-      <button type="submit" class="btn btn-primary w-full">Create User</button>
+      <button type="submit" class="btn btn-primary w-full mt-1">Create User</button>
     </form>
   </div>
 </div>

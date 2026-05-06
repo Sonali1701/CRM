@@ -1,0 +1,39 @@
+<tr>
+  <td>
+    <div class="flex items-center gap-3">
+      <div class="avatar text-white text-xs flex-shrink-0"
+        style="background:hsl({{ (lead.name | length * 47) % 360 }},55%,55%)">
+        {{ lead.name[:2].upper() }}
+      </div>
+      <div>
+        <a href="/leads/{{ lead.id }}" class="font-medium text-slate-900 hover:text-brand-600">{{ lead.name }}</a>
+        {% if lead.email %}<p class="text-xs text-slate-400">{{ lead.email }}</p>{% endif %}
+      </div>
+    </div>
+  </td>
+  <td class="text-slate-600">{{ lead.company or '—' }}</td>
+  <td><span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span></td>
+  <td class="text-slate-500 text-sm">{{ lead.source or '—' }}</td>
+  <td>
+    <form method="post" action="/leads/{{ lead.id }}/assign"
+          hx-post="/leads/{{ lead.id }}/assign" hx-target="closest tr" hx-swap="outerHTML">
+      <select name="owner_id" class="select text-xs py-1 px-2 w-36" onchange="this.form.requestSubmit()">
+        <option value="">Unassigned</option>
+        {% for rep in reps %}
+          <option value="{{ rep.id }}" {% if lead.owner_id == rep.id %}selected{% endif %}>{{ rep.full_name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </td>
+  <td class="text-slate-400 text-xs">{{ lead.created_at | date }}</td>
+  <td>
+    <div class="flex items-center gap-1">
+      <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm">Edit</a>
+      {% if lead.status.value != 'converted' %}
+        <form method="post" action="/leads/{{ lead.id }}/convert">
+          <button class="btn btn-ghost btn-sm text-brand-600">Convert</button>
+        </form>
+      {% endif %}
+    </div>
+  </td>
+</tr>

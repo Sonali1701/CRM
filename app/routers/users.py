@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -6,6 +8,7 @@ from app.database import get_db
 from app.deps import require_admin, require_user
 from app.flash import flash, get_flash
 from app.models import User
+from app.models.login_event import LoginEvent
 from app.models.user import UserRole
 from app.security import hash_password
 from app.templating import templates
@@ -16,8 +19,15 @@ router = APIRouter()
 @router.get("")
 def users_list(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     users = db.query(User).order_by(User.full_name).all()
+    # Attach last login to each user
+    last_logins = {}
+    for u in users:
+        ev = db.query(LoginEvent).filter(LoginEvent.user_id == u.id)\
+               .order_by(LoginEvent.logged_in_at.desc()).first()
+        last_logins[u.id] = ev
     return templates.TemplateResponse(request, "users/list.html", {
-        "user": user, "flash": get_flash(request), "users": users, "roles": list(UserRole),
+        "user": user, "flash": get_flash(request),
+        "users": users, "roles": list(UserRole), "last_logins": last_logins,
     })
 
 
@@ -45,7 +55,7 @@ def user_toggle(user_id: int, user: User = Depends(require_admin), db: Session =
     target.is_active = not target.is_active
     db.commit()
     state = "activated" if target.is_active else "deactivated"
-    return flash(RedirectResponse("/users", 303), f"User {state}.")
+    return flash(RedirectResponse("/users", 303), f"{target.full_name} {state}.")
 
 
 @router.post("/{user_id}/reset-password")
@@ -58,7 +68,20 @@ def user_reset_password(
         raise HTTPException(404, "User not found")
     target.password_hash = hash_password(new_password)
     db.commit()
-    return flash(RedirectResponse("/users", 303), "Password reset.")
+    return flash(RedirectResponse("/users", 303), f"Password reset for {target.full_name}.")
+
+
+@router.get("/activity")
+def login_activity(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    events = (
+        db.query(LoginEvent)
+        .order_by(LoginEvent.logged_in_at.desc())
+        .limit(200)
+        .all()
+    )
+    return templates.TemplateResponse(request, "users/activity.html", {
+        "user": user, "flash": get_flash(request), "events": events,
+    })
 
 
 @router.get("/profile")

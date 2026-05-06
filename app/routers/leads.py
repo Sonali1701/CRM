@@ -111,6 +111,33 @@ def lead_delete(lead_id: int, user: User = Depends(require_user), db: Session = 
     return flash(RedirectResponse("/leads", 303), "Lead deleted.", "error")
 
 
+@router.post("/{lead_id}/assign")
+async def lead_assign(
+    lead_id: int, request: Request,
+    owner_id: int = Form(None),
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    if not user.is_manager:
+        from fastapi import HTTPException
+        raise HTTPException(403)
+    lead = _get_lead_any(lead_id, db)
+    lead.owner_id = owner_id or None
+    db.commit()
+    # Re-fetch owner for display
+    reps = db.query(User).filter(User.is_active == True).all()
+    return templates.TemplateResponse(request, "leads/_row.html", {
+        "lead": lead, "user": user, "reps": reps,
+    })
+
+
+def _get_lead_any(lead_id: int, db: Session) -> Lead:
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Lead not found")
+    return lead
+
+
 def _get_lead(lead_id: int, user: User, db: Session) -> Lead:
     q = db.query(Lead).filter(Lead.id == lead_id)
     if not user.is_manager:

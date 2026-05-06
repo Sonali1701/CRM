@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Login Activity – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-slate-900">Login Activity</h1>
+    <p class="text-sm text-slate-500 mt-0.5">Who has logged in and when — last 200 sessions</p>
+  </div>
+  <a href="/users" class="btn btn-secondary">← Users</a>
+</div>
+
+<div class="card overflow-hidden">
+  {% if events %}
+  <table class="crm">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Role</th>
+        <th>Logged In</th>
+        <th>IP Address</th>
+        <th>Browser / Device</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ev in events %}
+        <tr>
+          <td>
+            <div class="flex items-center gap-3">
+              <div class="avatar text-white text-xs"
+                style="background:hsl({{ (ev.user.full_name | length * 47) % 360 }},50%,55%)">
+                {{ ev.user.full_name[:2].upper() }}
+              </div>
+              <div>
+                <p class="font-medium text-slate-900">{{ ev.user.full_name }}</p>
+                <p class="text-xs text-slate-400">{{ ev.user.email }}</p>
+              </div>
+            </div>
+          </td>
+          <td><span class="badge badge-{{ ev.user.role.value }}">{{ ev.user.role.value }}</span></td>
+          <td class="text-sm text-slate-700">{{ ev.logged_in_at | date }}</td>
+          <td class="text-sm font-mono text-slate-500">{{ ev.ip_address or '—' }}</td>
+          <td class="text-xs text-slate-400 max-w-xs truncate">
+            {% if ev.user_agent %}
+              {% if 'Mobile' in ev.user_agent %}📱{% else %}🖥️{% endif %}
+              {{ ev.user_agent[:80] }}
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="py-16 text-center">
+    <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <p class="text-slate-500 font-medium">No login events recorded yet</p>
+    <p class="text-slate-400 text-sm mt-1">Events are recorded each time a user signs in.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

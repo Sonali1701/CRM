@@ -11,55 +11,133 @@
   <link rel="stylesheet" href="/static/app.css" />
   <script>
     tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: { 50: '#eef4ff', 500: '#4f46e5', 600: '#4338ca', 700: '#3730a3' }
-          }
-        }
-      }
+      theme: { extend: { colors: { brand: { 50:'#eef2ff',100:'#e0e7ff',500:'#6366f1',600:'#4f46e5',700:'#4338ca' } } } }
     };
   </script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800" x-data="{ sidebarOpen: false }">
+
 {% if user %}
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
-      <div class="flex items-center gap-6">
-        <a href="/" class="font-bold text-brand-600 text-lg">Radixsol CRM</a>
-        <nav class="hidden md:flex items-center gap-1 text-sm">
-          {% set nav = [('/', 'Dashboard'), ('/leads', 'Leads'), ('/clients', 'Clients'), ('/deals', 'Deals'), ('/pipeline', 'Pipeline'), ('/activities', 'Activities')] %}
-          {% for href, label in nav %}
-            <a href="{{ href }}" class="px-3 py-1.5 rounded-md hover:bg-slate-100 {% if request.url.path == href or (href != '/' and request.url.path.startswith(href)) %}bg-slate-100 text-brand-600 font-medium{% endif %}">{{ label }}</a>
-          {% endfor %}
-          {% if user.is_admin %}
-            <a href="/users" class="px-3 py-1.5 rounded-md hover:bg-slate-100 {% if request.url.path.startswith('/users') %}bg-slate-100 text-brand-600 font-medium{% endif %}">Users</a>
-          {% endif %}
-        </nav>
+<!-- ── Sidebar ───────────────────────────────────────────── -->
+<aside class="fixed inset-y-0 left-0 z-40 flex flex-col w-60 bg-white border-r border-slate-200 transition-transform duration-200"
+       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'">
+
+  <!-- Logo -->
+  <div class="flex items-center gap-2 h-14 px-5 border-b border-slate-200 flex-shrink-0">
+    <div class="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
+      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    </div>
+    <span class="font-bold text-slate-900 text-base">Radixsol CRM</span>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+    {% set path = request.url.path %}
+    <a href="/" class="nav-item {% if path == '/' %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <a href="/leads" class="nav-item {% if path.startswith('/leads') %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Leads
+    </a>
+    <a href="/clients" class="nav-item {% if path.startswith('/clients') %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Clients
+    </a>
+    <a href="/deals" class="nav-item {% if path.startswith('/deals') %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Deals
+    </a>
+    <a href="/pipeline" class="nav-item {% if path == '/pipeline' %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="11" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>
+      Pipeline
+    </a>
+    <a href="/activities" class="nav-item {% if path.startswith('/activities') %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Activities
+    </a>
+
+    {% if user.is_manager %}
+    <div class="pt-3 pb-1 px-2">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Admin</p>
+    </div>
+    <a href="/users" class="nav-item {% if path.startswith('/users') and path != '/users/profile' %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      Users
+    </a>
+    {% if user.is_admin %}
+    <a href="/users/activity" class="nav-item {% if path == '/users/activity' %}active{% endif %}">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Login Activity
+    </a>
+    {% endif %}
+    {% endif %}
+  </nav>
+
+  <!-- User section -->
+  <div class="border-t border-slate-200 p-3 flex-shrink-0">
+    <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50">
+      <div class="avatar bg-brand-100 text-brand-700 text-xs">{{ user.full_name[:2].upper() }}</div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium truncate text-slate-900">{{ user.full_name }}</p>
+        <p class="text-xs text-slate-400 truncate">{{ user.role.value }}</p>
       </div>
-      <div class="flex items-center gap-3 text-sm">
-        <span class="hidden sm:inline text-slate-500">{{ user.full_name }} <span class="text-xs px-2 py-0.5 rounded bg-slate-100 ml-1">{{ user.role.value }}</span></span>
-        <form method="post" action="/logout"><button class="text-slate-500 hover:text-slate-800">Logout</button></form>
+      <div class="flex gap-1">
+        <a href="/users/profile" title="Profile"
+           class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </a>
+        <form method="post" action="/logout">
+          <button title="Logout" class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-red-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </form>
       </div>
     </div>
-    <nav class="md:hidden border-t border-slate-200 px-2 py-2 flex gap-1 overflow-x-auto text-sm">
-      {% for href, label in nav %}
-        <a href="{{ href }}" class="px-3 py-1.5 rounded-md hover:bg-slate-100 whitespace-nowrap {% if request.url.path == href or (href != '/' and request.url.path.startswith(href)) %}bg-slate-100 text-brand-600 font-medium{% endif %}">{{ label }}</a>
-      {% endfor %}
-    </nav>
-  </header>
-{% endif %}
-
-{% if flash %}
-  <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 mt-4">
-    <div class="rounded-md p-3 text-sm {% if flash.type == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">{{ flash.message }}</div>
   </div>
+</aside>
+
+<!-- Mobile overlay -->
+<div x-show="sidebarOpen" @click="sidebarOpen=false" x-cloak
+     class="fixed inset-0 bg-black/40 z-30 md:hidden"></div>
+
+<!-- ── Main area ─────────────────────────────────────────── -->
+<div class="md:ml-60 min-h-screen flex flex-col">
+  <!-- Top bar -->
+  <header class="h-14 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
+    <button @click="sidebarOpen=true" class="md:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="flex-1"></div>
+    <span class="text-sm text-slate-500 hidden sm:inline">{{ user.full_name }}</span>
+    <span class="badge badge-{{ user.role.value }}">{{ user.role.value | humanize }}</span>
+  </header>
+
+  <!-- Flash -->
+  {% if flash %}
+  <div class="mx-4 md:mx-6 mt-4">
+    <div class="rounded-lg px-4 py-3 text-sm flex items-center gap-2
+      {% if flash.type == 'error' %}bg-red-50 text-red-700 border border-red-200
+      {% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+      {% if flash.type == 'error' %}
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {% else %}
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      {% endif %}
+      {{ flash.message }}
+    </div>
+  </div>
+  {% endif %}
+
+  <main class="flex-1 px-4 md:px-6 py-6">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% else %}
+  <main>{% block content %}{% endblock %}</main>
 {% endif %}
 
-<main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6">
-  {% block content %}{% endblock %}
-</main>
-
-<footer class="text-center text-xs text-slate-400 py-4">Radixsol CRM</footer>
 </body>
 </html>

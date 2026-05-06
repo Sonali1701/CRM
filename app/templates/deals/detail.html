@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ deal.title }} – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <a href="/deals" class="text-slate-400 hover:text-slate-600 text-sm">← Deals</a>
+    <h1 class="text-xl font-semibold">{{ deal.title }}</h1>
+    <span class="badge {% if deal.stage.value == 'closed_won' %}bg-green-100 text-green-700{% elif deal.stage.value == 'closed_lost' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+      {{ deal.stage_label }}
+    </span>
+  </div>
+  <span class="text-2xl font-bold text-brand-600">{{ deal.value | currency }}</span>
+</div>
+
+<!-- Stage progression bar -->
+{% set open_stages = ['lead_generated','qualified','discovery_done','requirement_received','proposal_shared','negotiation'] %}
+<div class="card p-3 mb-6 overflow-x-auto">
+  <div class="flex gap-1 min-w-max">
+    {% for s in stages %}
+      <form method="post" action="/deals/{{ deal.id }}" class="flex-1 min-w-[80px]">
+        <input type="hidden" name="title" value="{{ deal.title }}" />
+        <input type="hidden" name="value" value="{{ deal.value }}" />
+        <input type="hidden" name="stage" value="{{ s.value }}" />
+        <input type="hidden" name="probability" value="{{ deal.probability }}" />
+        {% if deal.client_id %}<input type="hidden" name="client_id" value="{{ deal.client_id }}" />{% endif %}
+        {% if deal.owner_id %}<input type="hidden" name="owner_id" value="{{ deal.owner_id }}" />{% endif %}
+        {% if deal.expected_close_date %}<input type="hidden" name="expected_close_date" value="{{ deal.expected_close_date }}" />{% endif %}
+        <button type="submit"
+          class="w-full text-xs py-1.5 rounded text-center transition-colors
+            {% if deal.stage.value == s.value %}bg-brand-600 text-white font-semibold
+            {% elif s.value in open_stages and open_stages.index(s.value) < open_stages.index(deal.stage.value) if deal.stage.value in open_stages else False %}bg-brand-100 text-brand-700
+            {% else %}bg-slate-100 text-slate-500 hover:bg-slate-200{% endif %}">
+          {{ stage_labels[s] }}
+        </button>
+      </form>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid md:grid-cols-3 gap-6">
+  <div class="md:col-span-2 space-y-6">
+    <!-- Edit form -->
+    <div class="card p-5">
+      <h2 class="font-medium mb-4 text-sm">Deal Details</h2>
+      <form method="post" action="/deals/{{ deal.id }}" class="space-y-4">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium mb-1">Title</label>
+            <input name="title" value="{{ deal.title }}" required class="input" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Client</label>
+            <select name="client_id" class="select">
+              <option value="">— None —</option>
+              {% for c in clients %}<option value="{{ c.id }}" {% if deal.client_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Stage</label>
+            <select name="stage" class="select">
+              {% for s in stages %}<option value="{{ s.value }}" {% if deal.stage.value == s.value %}selected{% endif %}>{{ stage_labels[s] }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Value (USD)</label>
+            <input type="number" name="value" value="{{ deal.value }}" min="0" step="100" class="input" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Close Date</label>
+            <input type="date" name="expected_close_date" value="{{ deal.expected_close_date or '' }}" class="input" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Probability %</label>
+            <input type="number" name="probability" value="{{ deal.probability }}" min="0" max="100" class="input" />
+          </div>
+          {% if reps %}
+            <div>
+              <label class="block text-sm font-medium mb-1">Owner</label>
+              <select name="owner_id" class="select">
+                <option value="">Unassigned</option>
+                {% for rep in reps %}<option value="{{ rep.id }}" {% if deal.owner_id == rep.id %}selected{% endif %}>{{ rep.full_name }}</option>{% endfor %}
+              </select>
+            </div>
+          {% endif %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Notes</label>
+          <textarea name="notes" rows="3" class="textarea">{{ deal.notes or '' }}</textarea>
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <form method="post" action="/deals/{{ deal.id }}/delete" onsubmit="return confirm('Delete this deal?')">
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </form>
+        </div>
+      </form>
+    </div>
+
+    <!-- Activity log -->
+    <div class="card p-5">
+      <h2 class="font-medium mb-3 text-sm">Activity Log</h2>
+
+      <form method="post" action="/activities/new" class="mb-5 space-y-2 bg-slate-50 p-3 rounded-lg">
+        <input type="hidden" name="deal_id" value="{{ deal.id }}" />
+        <input type="hidden" name="redirect_to" value="/deals/{{ deal.id }}" />
+        <div class="flex gap-2">
+          <select name="type_" class="select w-32 text-sm">
+            {% for t in ActivityType %}<option value="{{ t.value }}">{{ t.value | humanize }}</option>{% endfor %}
+          </select>
+          <input name="subject" placeholder="Subject / summary *" required class="input flex-1 text-sm" />
+        </div>
+        <textarea name="body" rows="2" placeholder="Notes (optional)" class="textarea text-sm"></textarea>
+        <div class="flex gap-2 items-center">
+          <label class="text-xs text-slate-500">Due:</label>
+          <input type="datetime-local" name="due_at" class="input text-sm w-48" />
+          <button type="submit" class="btn btn-primary ml-auto">Log Activity</button>
+        </div>
+      </form>
+
+      {% if activities %}
+        <ul class="space-y-3">
+          {% for act in activities %}
+            <li class="flex gap-3 text-sm border-b border-slate-100 pb-3">
+              <span class="badge {% if act.completed %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-600{% endif %} h-fit">{{ act.type.value | humanize }}</span>
+              <div class="flex-1">
+                <p class="font-medium {% if act.completed %}line-through text-slate-400{% endif %}">{{ act.subject }}</p>
+                {% if act.body %}<p class="text-slate-500 text-xs mt-0.5">{{ act.body }}</p>{% endif %}
+                <p class="text-xs text-slate-400 mt-1">
+                  {{ act.created_by.full_name if act.created_by else '' }} · {{ act.created_at | date }}
+                  {% if act.due_at %} · Due: {{ act.due_at | date }}{% endif %}
+                </p>
+              </div>
+              {% if not act.completed %}
+                <form method="post" action="/activities/{{ act.id }}/complete">
+                  <input type="hidden" name="redirect_to" value="/deals/{{ deal.id }}" />
+                  <button class="text-xs text-green-600 hover:underline">Done</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-400">No activities yet. Log the first one above.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="space-y-4">
+    <div class="card p-4 text-sm space-y-2">
+      <h2 class="font-medium mb-2">Quick Info</h2>
+      <p class="flex justify-between"><span class="text-slate-500">Client</span> <span>{{ deal.client.name if deal.client else '—' }}</span></p>
+      <p class="flex justify-between"><span class="text-slate-500">Owner</span> <span>{{ deal.owner.full_name if deal.owner else '—' }}</span></p>
+      <p class="flex justify-between"><span class="text-slate-500">Probability</span> <span>{{ deal.probability }}%</span></p>
+      <p class="flex justify-between"><span class="text-slate-500">Created</span> <span>{{ deal.created_at | date }}</span></p>
+      {% if deal.last_activity_at %}
+        <p class="flex justify-between"><span class="text-slate-500">Last activity</span> <span>{{ deal.last_activity_at | date }}</span></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

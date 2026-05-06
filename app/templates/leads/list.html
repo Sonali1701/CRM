@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Leads – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+  <h1 class="text-xl font-semibold">Leads</h1>
+  <div class="flex gap-2">
+    <a href="/import/leads/import" class="btn btn-secondary">Import CSV</a>
+    <a href="/leads/new" class="btn btn-primary">+ New Lead</a>
+  </div>
+</div>
+
+<div class="card mb-4 p-3 flex flex-wrap gap-3 items-center">
+  <form method="get" action="/leads" class="flex flex-wrap gap-2 w-full">
+    <input name="search" value="{{ search }}" placeholder="Search name, company, email…"
+      class="input w-48 flex-1" />
+    <select name="status" class="select w-36">
+      <option value="">All statuses</option>
+      {% for s in statuses %}
+        <option value="{{ s.value }}" {% if filter_status == s.value %}selected{% endif %}>{{ s.value | humanize }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    {% if search or filter_status %}
+      <a href="/leads" class="btn btn-secondary">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card overflow-hidden">
+  {% if leads %}
+    <table class="crm">
+      <thead><tr>
+        <th>Name</th><th>Company</th><th>Status</th><th>Source</th><th>Owner</th><th>Created</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for lead in leads %}
+          <tr>
+            <td><a href="/leads/{{ lead.id }}" class="font-medium hover:text-brand-600">{{ lead.name }}</a></td>
+            <td class="text-slate-500">{{ lead.company or '—' }}</td>
+            <td><span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span></td>
+            <td class="text-slate-500">{{ lead.source or '—' }}</td>
+            <td class="text-slate-500">{{ lead.owner.full_name if lead.owner else '—' }}</td>
+            <td class="text-slate-400 text-xs">{{ lead.created_at | date }}</td>
+            <td>
+              {% if lead.status.value != 'converted' %}
+                <form method="post" action="/leads/{{ lead.id }}/convert" class="inline">
+                  <button class="text-xs text-brand-600 hover:underline">Convert</button>
+                </form>
+              {% else %}
+                {% if lead.converted_client_id %}
+                  <a href="/clients/{{ lead.converted_client_id }}" class="text-xs text-slate-400 hover:underline">View client</a>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="p-8 text-center text-slate-400">No leads found. <a href="/leads/new" class="text-brand-600 hover:underline">Add one</a>.</div>
+  {% endif %}
+</div>
+{% endblock %}

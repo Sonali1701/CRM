@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Import {{ entity_label }} – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-xl">
+  <div class="mb-4 flex items-center gap-3">
+    <a href="{{ back_url }}" class="text-slate-400 hover:text-slate-600 text-sm">← {{ entity_label }}</a>
+    <h1 class="text-xl font-semibold">Import {{ entity_label }}</h1>
+  </div>
+
+  {% if error %}
+    <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">{{ error }}</div>
+  {% endif %}
+
+  <div class="card p-6 space-y-5">
+    <div class="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm text-blue-800 space-y-2">
+      <p class="font-medium">How it works</p>
+      <ol class="list-decimal list-inside space-y-1 text-blue-700">
+        <li>Upload your Excel, CSV, or Google Sheets export</li>
+        <li>We'll read your column names and auto-suggest the mapping</li>
+        <li>Review or adjust the mapping, then confirm import</li>
+      </ol>
+      <p class="pt-1">
+        <span class="font-medium">Supported formats:</span> .xlsx (Excel), .csv (including Google Sheets export)
+      </p>
+      <a href="/import/{{ entity }}/template.csv" class="inline-block text-blue-600 underline hover:text-blue-800">
+        Download sample CSV template
+      </a>
+    </div>
+
+    <div class="text-sm text-slate-600">
+      <p class="font-medium mb-1">CRM fields available for mapping:</p>
+      <div class="flex flex-wrap gap-2">
+        {% for f in fields %}
+          <span class="badge bg-slate-100 text-slate-700">
+            {{ f.label }}{% if f.required %} <span class="text-red-500">*</span>{% endif %}
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <form method="post" action="/import/{{ entity }}/import" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-2">Choose your file</label>
+        <div x-data="{ name: '' }" class="relative">
+          <input type="file" name="file" accept=".csv,.xlsx,.xls,text/csv" required
+            @change="name = $event.target.files[0]?.name || ''"
+            class="block w-full text-sm text-slate-500
+              file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0
+              file:text-sm file:font-medium file:bg-brand-600 file:text-white
+              hover:file:bg-brand-700 file:cursor-pointer cursor-pointer" />
+          <p x-show="name" x-text="'Selected: ' + name" class="text-xs text-slate-500 mt-1"></p>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary w-full py-2.5">
+        Upload &amp; Preview Mapping →
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

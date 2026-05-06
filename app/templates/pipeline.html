@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Pipeline – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+  <h1 class="text-xl font-semibold">Pipeline Board</h1>
+  <a href="/deals/new" class="btn btn-primary">+ New Deal</a>
+</div>
+
+<div class="overflow-x-auto pb-4">
+  <div class="flex gap-3 min-w-max">
+    {% for stage in OPEN_STAGES %}
+      {% set col = columns[stage] %}
+      <div class="w-64 flex-shrink-0">
+        <div class="flex items-center justify-between mb-2 px-1">
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ col.label }}</span>
+          <span class="text-xs text-slate-400">{{ col.deals | length }} · {{ col.total | currency("USD") }}</span>
+        </div>
+        <div id="col-{{ stage.value }}" data-stage="{{ stage.value }}"
+             class="kanban-column space-y-2 rounded-lg bg-slate-100 p-2 min-h-[200px]">
+          {% for deal in col.deals %}
+            <div class="kanban-card card p-3" data-deal-id="{{ deal.id }}">
+              <div class="flex items-start justify-between gap-1">
+                <a href="/deals/{{ deal.id }}" class="text-sm font-medium hover:text-brand-600 leading-tight">{{ deal.title }}</a>
+                {% if is_stale(deal) %}
+                  <span class="badge badge-stale flex-shrink-0">stale</span>
+                {% endif %}
+              </div>
+              {% if deal.client %}
+                <p class="text-xs text-slate-500 mt-1">{{ deal.client.name }}</p>
+              {% endif %}
+              <div class="flex items-center justify-between mt-2">
+                <span class="text-sm font-semibold text-brand-600">{{ deal.value | currency }}</span>
+                {% if deal.expected_close_date %}
+                  <span class="text-xs text-slate-400">{{ deal.expected_close_date | date }}</span>
+                {% endif %}
+              </div>
+              {% if deal.owner %}
+                <p class="text-xs text-slate-400 mt-1">{{ deal.owner.full_name }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  const stages = {{ OPEN_STAGES | map(attribute='value') | list | tojson }};
+  stages.forEach(stage => {
+    const col = document.getElementById('col-' + stage);
+    if (!col) return;
+    Sortable.create(col, {
+      group: 'pipeline',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      onEnd: async function(evt) {
+        const dealId = evt.item.dataset.dealId;
+        const newStage = evt.to.dataset.stage;
+        await fetch('/deals/' + dealId + '/stage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stage: newStage }),
+        });
+      }
+    });
+  });
+</script>
+{% endblock %}

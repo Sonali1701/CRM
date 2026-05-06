@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Clients – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+  <h1 class="text-xl font-semibold">Clients</h1>
+  <div class="flex gap-2">
+    <a href="/import/clients/import" class="btn btn-secondary">Import CSV</a>
+    <a href="/clients/new" class="btn btn-primary">+ New Client</a>
+  </div>
+</div>
+
+<div class="card mb-4 p-3">
+  <form method="get" action="/clients" class="flex flex-wrap gap-2">
+    <input name="search" value="{{ search }}" placeholder="Search by name…" class="input w-48 flex-1" />
+    <select name="type_" class="select w-36">
+      <option value="">All types</option>
+      {% for t in types %}
+        <option value="{{ t.value }}" {% if filter_type == t.value %}selected{% endif %}>{{ t.value | humanize }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    {% if search or filter_type %}<a href="/clients" class="btn btn-secondary">Clear</a>{% endif %}
+  </form>
+</div>
+
+<div class="card overflow-hidden">
+  {% if clients %}
+    <table class="crm">
+      <thead><tr><th>Name</th><th>Type</th><th>Industry</th><th>Contacts</th><th>Deals</th><th>Owner</th><th></th></tr></thead>
+      <tbody>
+        {% for client in clients %}
+          <tr>
+            <td><a href="/clients/{{ client.id }}" class="font-medium hover:text-brand-600">{{ client.name }}</a></td>
+            <td><span class="badge bg-slate-100 text-slate-600">{{ client.type.value | humanize }}</span></td>
+            <td class="text-slate-500">{{ client.industry or '—' }}</td>
+            <td class="text-slate-500">{{ client.contacts | length }}</td>
+            <td class="text-slate-500">{{ client.deals | length }}</td>
+            <td class="text-slate-500">{{ client.owner.full_name if client.owner else '—' }}</td>
+            <td><a href="/clients/{{ client.id }}" class="text-xs text-brand-600 hover:underline">View</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="p-8 text-center text-slate-400">No clients found. <a href="/clients/new" class="text-brand-600 hover:underline">Add one</a>.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Import Leads – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-xl">
+  <div class="mb-4 flex items-center gap-3">
+    <a href="/leads" class="text-slate-400 hover:text-slate-600 text-sm">← Leads</a>
+    <h1 class="text-xl font-semibold">Import Leads</h1>
+  </div>
+
+  <div class="card p-6 space-y-5">
+    <div class="bg-blue-50 border border-blue-200 rounded-md p-4 text-sm text-blue-800 space-y-1">
+      <p class="font-medium">CSV format</p>
+      <p>Required column: <code class="bg-blue-100 px-1 rounded">name</code></p>
+      <p>Optional: <code class="bg-blue-100 px-1 rounded">company</code>, <code class="bg-blue-100 px-1 rounded">email</code>, <code class="bg-blue-100 px-1 rounded">phone</code>, <code class="bg-blue-100 px-1 rounded">source</code>, <code class="bg-blue-100 px-1 rounded">notes</code></p>
+      <p>All imported leads are assigned to you with status <strong>New</strong>.</p>
+      <a href="/import/leads/template.csv" class="inline-block mt-1 text-blue-600 underline hover:text-blue-800">Download template CSV</a>
+    </div>
+
+    <form method="post" action="/import/leads/import" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Choose CSV file</label>
+        <input type="file" name="file" accept=".csv,text/csv" required
+          class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100" />
+      </div>
+      <button type="submit" class="btn btn-primary w-full">Upload & Import</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

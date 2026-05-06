@@ -1,0 +1,37 @@
+/* CRM custom styles */
+.btn { @apply inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-md transition-colors; }
+.btn-primary { @apply bg-brand-600 text-white hover:bg-brand-700; }
+.btn-secondary { @apply bg-white border border-slate-300 text-slate-700 hover:bg-slate-50; }
+.btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+
+.card { @apply bg-white rounded-lg border border-slate-200 shadow-sm; }
+
+.input, .select, .textarea {
+  @apply w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent;
+}
+
+.kanban-column {
+  min-height: 200px;
+}
+.kanban-card {
+  cursor: grab;
+}
+.kanban-card.sortable-ghost {
+  opacity: 0.4;
+}
+.kanban-card.sortable-chosen {
+  cursor: grabbing;
+}
+
+table.crm { @apply w-full text-sm; }
+table.crm thead th { @apply text-left text-xs uppercase tracking-wider text-slate-500 font-medium border-b border-slate-200 px-4 py-2 bg-slate-50; }
+table.crm tbody td { @apply px-4 py-3 border-b border-slate-100; }
+table.crm tbody tr:hover { @apply bg-slate-50; }
+
+.badge { @apply inline-block px-2 py-0.5 rounded text-xs font-medium; }
+.badge-new { @apply bg-blue-100 text-blue-700; }
+.badge-contacted { @apply bg-yellow-100 text-yellow-700; }
+.badge-qualified { @apply bg-green-100 text-green-700; }
+.badge-disqualified { @apply bg-slate-100 text-slate-600; }
+.badge-converted { @apply bg-purple-100 text-purple-700; }
+.badge-stale { @apply bg-orange-100 text-orange-700; }

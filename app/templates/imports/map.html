@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Map Columns – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+  <div class="mb-4 flex items-center gap-3">
+    <a href="{{ back_url }}" class="text-slate-400 hover:text-slate-600 text-sm">← Re-upload</a>
+    <h1 class="text-xl font-semibold">Map Columns — {{ entity_label }}</h1>
+  </div>
+
+  <p class="text-sm text-slate-500 mb-5">
+    We found <strong>{{ total_rows }}</strong> rows and <strong>{{ file_headers | length }}</strong> columns.
+    Match each CRM field to the column in your file. Fields marked <span class="text-red-500">*</span> are required.
+  </p>
+
+  <form method="post" action="{{ confirm_url }}" class="space-y-5">
+    <!-- Mapping table -->
+    <div class="card overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-200">
+            <th class="text-left px-4 py-2 text-xs uppercase tracking-wide text-slate-500 w-1/3">CRM Field</th>
+            <th class="text-left px-4 py-2 text-xs uppercase tracking-wide text-slate-500 w-1/2">Your Column</th>
+            <th class="text-left px-4 py-2 text-xs uppercase tracking-wide text-slate-500">Preview</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for field in fields %}
+            {% set mapped_col = auto_map.get(field.key, '') %}
+            <tr class="border-b border-slate-100 {% if field.required %}bg-white{% else %}bg-white{% endif %}">
+              <td class="px-4 py-3 font-medium">
+                {{ field.label }}
+                {% if field.required %}<span class="text-red-500">*</span>{% endif %}
+              </td>
+              <td class="px-4 py-3">
+                <select name="map_{{ field.key }}"
+                  class="select text-sm {% if mapped_col %}border-green-400 bg-green-50{% endif %}"
+                  onchange="updatePreview(this, '{{ field.key }}')">
+                  <option value="">— skip this field —</option>
+                  {% for h in file_headers %}
+                    <option value="{{ h }}" {% if h == mapped_col %}selected{% endif %}>{{ h }}</option>
+                  {% endfor %}
+                </select>
+                {% if mapped_col %}
+                  <span class="text-xs text-green-600 ml-1">auto-matched</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-slate-400 text-xs" id="preview-{{ field.key }}">
+                {% if mapped_col and preview %}
+                  {{ preview[0].get(mapped_col, '') }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Data preview -->
+    {% if preview %}
+      <div class="card p-4">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">First {{ preview | length }} rows from your file</p>
+        <div class="overflow-x-auto">
+          <table class="crm text-xs">
+            <thead>
+              <tr>
+                {% for h in file_headers %}<th>{{ h }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in preview %}
+                <tr>
+                  {% for h in file_headers %}<td>{{ row.get(h, '') }}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="flex gap-3">
+      <button type="submit" class="btn btn-primary">Import {{ total_rows }} rows →</button>
+      <a href="{{ back_url }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Live preview: when user changes a mapping dropdown, update the preview cell
+  const previewRows = {{ preview | tojson }};
+
+  function updatePreview(select, fieldKey) {
+    const col = select.value;
+    const cell = document.getElementById('preview-' + fieldKey);
+    if (!cell) return;
+    if (col && previewRows.length > 0) {
+      cell.textContent = previewRows[0][col] || '';
+      cell.className = 'px-4 py-3 text-slate-700 text-xs';
+    } else {
+      cell.textContent = '';
+      cell.className = 'px-4 py-3 text-slate-400 text-xs';
+    }
+  }
+</script>
+{% endblock %}

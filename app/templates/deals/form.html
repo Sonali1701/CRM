@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}New Deal – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+  <div class="mb-4 flex items-center gap-3">
+    <a href="/deals" class="text-slate-400 hover:text-slate-600 text-sm">← Deals</a>
+    <h1 class="text-xl font-semibold">New Deal</h1>
+  </div>
+  <div class="card p-6">
+    <form method="post" action="/deals/new" class="space-y-4">
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-medium mb-1">Deal Title *</label>
+          <input name="title" required class="input" placeholder="e.g. Acme Corp – 5 RN placements" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Client</label>
+          <select name="client_id" class="select">
+            <option value="">— Select client —</option>
+            {% for c in clients %}<option value="{{ c.id }}" {% if prefill_client_id and c.id == prefill_client_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Stage</label>
+          <select name="stage" class="select">
+            {% for s in stages %}<option value="{{ s.value }}">{{ stage_labels[s] }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Value (USD)</label>
+          <input type="number" name="value" value="0" min="0" step="100" class="input" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Expected Close Date</label>
+          <input type="date" name="expected_close_date" class="input" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Probability %</label>
+          <input type="number" name="probability" value="0" min="0" max="100" class="input" />
+        </div>
+        {% if reps %}
+          <div>
+            <label class="block text-sm font-medium mb-1">Owner</label>
+            <select name="owner_id" class="select">
+              <option value="">Unassigned</option>
+              {% for rep in reps %}<option value="{{ rep.id }}">{{ rep.full_name }}</option>{% endfor %}
+            </select>
+          </div>
+        {% endif %}
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Notes</label>
+        <textarea name="notes" rows="3" class="textarea"></textarea>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="btn btn-primary">Create Deal</button>
+        <a href="/deals" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: radixsol-crm
+    env: python
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: radixsol-crm-db
+          property: connectionString
+      - key: ENV
+        value: production
+      - key: STALE_DEAL_DAYS
+        value: 5
+
+databases:
+  - name: radixsol-crm-db
+    databaseName: radixsol_crm
+    user: radixsol

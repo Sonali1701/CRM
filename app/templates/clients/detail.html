@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ client.name }} – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <a href="/clients" class="text-slate-400 hover:text-slate-600 text-sm">← Clients</a>
+    <h1 class="text-xl font-semibold">{{ client.name }}</h1>
+    <span class="badge bg-slate-100 text-slate-600">{{ client.type.value | humanize }}</span>
+  </div>
+  <a href="/deals/new?client_id={{ client.id }}" class="btn btn-primary">+ New Deal</a>
+</div>
+
+<div class="grid md:grid-cols-3 gap-6">
+  <!-- Details -->
+  <div class="md:col-span-2 space-y-6">
+    <div class="card p-5">
+      <h2 class="font-medium mb-4 text-sm">Account Details</h2>
+      <form method="post" action="/clients/{{ client.id }}" class="space-y-4">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Company Name</label>
+            <input name="name" value="{{ client.name }}" required class="input" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Type</label>
+            <select name="type_" class="select">
+              {% for t in types %}<option value="{{ t.value }}" {% if client.type.value == t.value %}selected{% endif %}>{{ t.value | humanize }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Industry</label>
+            <input name="industry" value="{{ client.industry or '' }}" class="input" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Website</label>
+            <input name="website" value="{{ client.website or '' }}" class="input" />
+          </div>
+          {% if reps %}
+            <div>
+              <label class="block text-sm font-medium mb-1">Account Owner</label>
+              <select name="owner_id" class="select">
+                <option value="">Unassigned</option>
+                {% for rep in reps %}<option value="{{ rep.id }}" {% if client.owner_id == rep.id %}selected{% endif %}>{{ rep.full_name }}</option>{% endfor %}
+              </select>
+            </div>
+          {% endif %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Notes</label>
+          <textarea name="notes" rows="3" class="textarea">{{ client.notes or '' }}</textarea>
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <form method="post" action="/clients/{{ client.id }}/delete" onsubmit="return confirm('Delete this client and all its data?')">
+            <button type="submit" class="btn btn-danger">Delete Client</button>
+          </form>
+        </div>
+      </form>
+    </div>
+
+    <!-- Deals -->
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-medium text-sm">Deals ({{ deals | length }})</h2>
+        <a href="/deals/new?client_id={{ client.id }}" class="text-xs text-brand-600 hover:underline">+ Add deal</a>
+      </div>
+      {% if deals %}
+        <table class="crm">
+          <thead><tr><th>Title</th><th>Stage</th><th>Value</th><th>Close Date</th></tr></thead>
+          <tbody>
+            {% for deal in deals %}
+              <tr>
+                <td><a href="/deals/{{ deal.id }}" class="hover:text-brand-600">{{ deal.title }}</a></td>
+                <td class="text-slate-500 text-xs">{{ deal.stage_label }}</td>
+                <td class="font-medium">{{ deal.value | currency }}</td>
+                <td class="text-slate-400 text-xs">{{ deal.expected_close_date | date }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="text-sm text-slate-400">No deals yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Contacts -->
+  <div class="space-y-4">
+    <div class="card p-4">
+      <h2 class="font-medium text-sm mb-3">Contacts ({{ client.contacts | length }})</h2>
+      {% for contact in client.contacts %}
+        <div class="mb-3 pb-3 border-b border-slate-100 last:border-0">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-sm font-medium">{{ contact.full_name }} {% if contact.is_primary %}<span class="text-xs text-brand-600">Primary</span>{% endif %}</p>
+              {% if contact.title %}<p class="text-xs text-slate-500">{{ contact.title }}</p>{% endif %}
+              {% if contact.email %}<p class="text-xs text-slate-500">{{ contact.email }}</p>{% endif %}
+              {% if contact.phone %}<p class="text-xs text-slate-500">{{ contact.phone }}</p>{% endif %}
+            </div>
+            <form method="post" action="/clients/{{ client.id }}/contacts/{{ contact.id }}/delete">
+              <button class="text-xs text-red-400 hover:text-red-600">✕</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+
+      <details class="mt-2">
+        <summary class="text-sm text-brand-600 cursor-pointer hover:underline">+ Add contact</summary>
+        <form method="post" action="/clients/{{ client.id }}/contacts/add" class="mt-3 space-y-2">
+          <input name="full_name" placeholder="Full name *" required class="input text-sm" />
+          <input name="title" placeholder="Title (e.g. Hiring Manager)" class="input text-sm" />
+          <input type="email" name="email" placeholder="Email" class="input text-sm" />
+          <input name="phone" placeholder="Phone" class="input text-sm" />
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="is_primary" value="true" class="rounded" /> Primary contact
+          </label>
+          <button type="submit" class="btn btn-primary w-full">Add Contact</button>
+        </form>
+      </details>
+    </div>
+  </div>
+</div>
+{% endblock %}

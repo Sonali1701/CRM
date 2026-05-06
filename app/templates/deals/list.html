@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Deals – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+  <h1 class="text-xl font-semibold">Deals</h1>
+  <div class="flex gap-2">
+    <a href="/pipeline" class="btn btn-secondary">Pipeline Board</a>
+    <a href="/deals/new" class="btn btn-primary">+ New Deal</a>
+  </div>
+</div>
+
+<div class="card mb-4 p-3">
+  <form method="get" action="/deals" class="flex flex-wrap gap-2">
+    <input name="search" value="{{ search }}" placeholder="Search deals…" class="input w-48 flex-1" />
+    <select name="stage" class="select w-48">
+      <option value="">All stages</option>
+      {% for s in stages %}
+        <option value="{{ s.value }}" {% if filter_stage == s.value %}selected{% endif %}>{{ stage_labels[s] }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    {% if search or filter_stage %}<a href="/deals" class="btn btn-secondary">Clear</a>{% endif %}
+  </form>
+</div>
+
+<div class="card overflow-hidden">
+  {% if deals %}
+    <table class="crm">
+      <thead><tr><th>Title</th><th>Client</th><th>Stage</th><th>Value</th><th>Close Date</th><th>Owner</th><th>Updated</th></tr></thead>
+      <tbody>
+        {% for deal in deals %}
+          <tr>
+            <td><a href="/deals/{{ deal.id }}" class="font-medium hover:text-brand-600">{{ deal.title }}</a></td>
+            <td class="text-slate-500">{{ deal.client.name if deal.client else '—' }}</td>
+            <td>
+              <span class="badge {% if deal.stage.value in ['closed_won'] %}bg-green-100 text-green-700{% elif deal.stage.value in ['closed_lost'] %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                {{ deal.stage_label }}
+              </span>
+            </td>
+            <td class="font-medium">{{ deal.value | currency }}</td>
+            <td class="text-slate-400 text-xs">{{ deal.expected_close_date | date }}</td>
+            <td class="text-slate-500">{{ deal.owner.full_name if deal.owner else '—' }}</td>
+            <td class="text-slate-400 text-xs">{{ deal.updated_at | date }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="p-8 text-center text-slate-400">No deals found. <a href="/deals/new" class="text-brand-600 hover:underline">Create one</a>.</div>
+  {% endif %}
+</div>
+{% endblock %}

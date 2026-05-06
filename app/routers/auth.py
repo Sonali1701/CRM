@@ -38,17 +38,22 @@ def login_submit(
 
     token = create_session_token(user.id)
 
-    # Record login event
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "")
-    ua = request.headers.get("user-agent", "")[:512]
-    event = LoginEvent(
-        user_id=user.id,
-        ip_address=ip.split(",")[0].strip() if ip else None,
-        user_agent=ua,
-        session_token_prefix=token[:12],
-    )
-    db.add(event)
-    db.commit()
+    # Record login event — wrapped so a missing table never breaks login
+    try:
+        ip = request.headers.get("x-forwarded-for", "")
+        if not ip and request.client:
+            ip = request.client.host
+        ua = request.headers.get("user-agent", "")[:512]
+        event = LoginEvent(
+            user_id=user.id,
+            ip_address=ip.split(",")[0].strip() if ip else None,
+            user_agent=ua,
+            session_token_prefix=token[:12],
+        )
+        db.add(event)
+        db.commit()
+    except Exception:
+        db.rollback()
 
     settings = get_settings()
     response = RedirectResponse("/", status_code=303)

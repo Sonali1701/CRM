@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Leads – Radixsol CRM{% endblock %}
+{% block title %}Contacts – Radixsol CRM{% endblock %}
 {% block content %}
 
 <div class="flex items-center justify-between mb-6">
   <div>
-    <h1 class="text-xl font-semibold text-slate-900">Leads</h1>
-    <p class="text-sm text-slate-500 mt-0.5">{{ leads | length }} lead{% if leads | length != 1 %}s{% endif %}{% if filter_status or search %} (filtered){% endif %}</p>
+    <h1 class="text-xl font-semibold text-slate-900">Contacts</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ leads | length }} contact{% if leads | length != 1 %}s{% endif %}{% if filter_status or search %} (filtered){% endif %}</p>
   </div>
   <div class="flex gap-2">
     <a href="/import/leads/import" class="btn btn-secondary">
@@ -14,7 +14,7 @@
     </a>
     <a href="/leads/new" class="btn btn-primary">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      New Lead
+      New Contact
     </a>
   </div>
 </div>
@@ -22,7 +22,7 @@
 <!-- Filters -->
 <div class="card p-3 mb-4">
   <form method="get" action="/leads" class="flex flex-wrap gap-2 items-center">
-    <div class="relative flex-1 min-w-[180px]">
+    <div class="relative flex-1 min-w-[200px]">
       <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input name="search" value="{{ search }}" placeholder="Search name, company, email…" class="input pl-9" />
     </div>
@@ -38,82 +38,35 @@
 </div>
 
 <!-- Table -->
-<div class="card overflow-hidden">
+<div class="card overflow-x-auto">
   {% if leads %}
   <table class="crm">
     <thead>
       <tr>
-        <th>Lead</th>
+        <th>Contact</th>
         <th>Company</th>
+        <th>Job Title</th>
+        <th>Email</th>
+        <th>Mobile / Phone</th>
+        <th>Location</th>
         <th>Status</th>
-        <th>Source</th>
         <th>Owner</th>
         <th>Created</th>
         <th></th>
       </tr>
     </thead>
-    <tbody>
+    <tbody id="contacts-tbody">
       {% for lead in leads %}
-      <tr>
-        <td>
-          <div class="flex items-center gap-3">
-            <div class="avatar text-white text-xs flex-shrink-0"
-              style="background:hsl({{ (lead.name | length * 47) % 360 }},55%,55%)">
-              {{ lead.name[:2].upper() }}
-            </div>
-            <div>
-              <a href="/leads/{{ lead.id }}" class="font-medium text-slate-900 hover:text-brand-600">{{ lead.name }}</a>
-              {% if lead.email %}<p class="text-xs text-slate-400">{{ lead.email }}</p>{% endif %}
-            </div>
-          </div>
-        </td>
-        <td class="text-slate-600">{{ lead.company or '—' }}</td>
-        <td><span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span></td>
-        <td class="text-slate-500 text-sm">{{ lead.source or '—' }}</td>
-        <td>
-          {% if user.is_manager %}
-            <!-- Inline assign dropdown -->
-            <form method="post" action="/leads/{{ lead.id }}/assign"
-                  hx-post="/leads/{{ lead.id }}/assign" hx-target="closest tr" hx-swap="outerHTML">
-              <select name="owner_id" class="select text-xs py-1 px-2 w-36"
-                      onchange="this.form.requestSubmit()">
-                <option value="">Unassigned</option>
-                {% for rep in reps %}
-                  <option value="{{ rep.id }}" {% if lead.owner_id == rep.id %}selected{% endif %}>
-                    {{ rep.full_name }}
-                  </option>
-                {% endfor %}
-              </select>
-            </form>
-          {% else %}
-            <span class="text-sm text-slate-600">{{ lead.owner.full_name if lead.owner else '—' }}</span>
-          {% endif %}
-        </td>
-        <td class="text-slate-400 text-xs">{{ lead.created_at | date }}</td>
-        <td>
-          <div class="flex items-center gap-1">
-            <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm">Edit</a>
-            {% if lead.status.value != 'converted' %}
-              <form method="post" action="/leads/{{ lead.id }}/convert">
-                <button class="btn btn-ghost btn-sm text-brand-600">Convert</button>
-              </form>
-            {% else %}
-              {% if lead.converted_client_id %}
-                <a href="/clients/{{ lead.converted_client_id }}" class="btn btn-ghost btn-sm text-violet-600">Client ↗</a>
-              {% endif %}
-            {% endif %}
-          </div>
-        </td>
-      </tr>
+      {% include "leads/_row.html" %}
       {% endfor %}
     </tbody>
   </table>
   {% else %}
   <div class="py-16 text-center">
     <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    <p class="text-slate-500 font-medium mb-1">No leads found</p>
-    <p class="text-slate-400 text-sm mb-4">Get started by adding your first lead or importing a CSV.</p>
-    <a href="/leads/new" class="btn btn-primary">Add Lead</a>
+    <p class="text-slate-500 font-medium mb-1">No contacts found</p>
+    <p class="text-slate-400 text-sm mb-4">Get started by adding your first contact or importing a CSV.</p>
+    <a href="/leads/new" class="btn btn-primary">Add Contact</a>
   </div>
   {% endif %}
 </div>

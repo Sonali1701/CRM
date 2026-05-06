@@ -33,14 +33,15 @@ def activities_list(request: Request, user: User = Depends(require_user), db: Se
 def activity_create(
     request: Request,
     type_: str = Form(...), subject: str = Form(...), body: str = Form(""),
-    deal_id: int = Form(None), due_at: str = Form(""),
+    deal_id: int = Form(None), client_id: int = Form(None), due_at: str = Form(""),
     redirect_to: str = Form("/activities"),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     due = datetime.strptime(due_at, "%Y-%m-%dT%H:%M").replace(tzinfo=timezone.utc) if due_at else None
     activity = Activity(
         type=ActivityType(type_), subject=subject, body=body or None,
-        deal_id=deal_id or None, due_at=due, created_by_id=user.id,
+        deal_id=deal_id or None, client_id=client_id or None,
+        due_at=due, created_by_id=user.id,
     )
     db.add(activity)
     if deal_id:

@@ -1,20 +1,45 @@
 {% extends "base.html" %}
 {% block title %}{{ client.name }} – Radixsol CRM{% endblock %}
 {% block content %}
-<div class="mb-4 flex items-center justify-between">
+
+<!-- Header -->
+<div class="mb-5 flex items-start justify-between gap-4">
   <div class="flex items-center gap-3">
-    <a href="/clients" class="text-slate-400 hover:text-slate-600 text-sm">← Clients</a>
-    <h1 class="text-xl font-semibold">{{ client.name }}</h1>
-    <span class="badge bg-slate-100 text-slate-600">{{ client.type.value | humanize }}</span>
+    <a href="/clients" class="text-slate-400 hover:text-slate-600 text-sm">← Companies</a>
+    <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+      style="background:hsl({{ (client.name | length * 53) % 360 }},50%,50%)">
+      {{ client.name[:2].upper() }}
+    </div>
+    <div>
+      <h1 class="text-xl font-semibold text-slate-900">{{ client.name }}</h1>
+      <div class="flex items-center gap-2 mt-0.5">
+        <span class="badge bg-slate-100 text-slate-600">{{ client.type.value | humanize }}</span>
+        {% if client.industry %}<span class="text-sm text-slate-500">{{ client.industry }}</span>{% endif %}
+        {% if client.website %}
+          <a href="{{ client.website }}" target="_blank" class="text-xs text-brand-600 hover:underline flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Website
+          </a>
+        {% endif %}
+        {% if client.linkedin_url %}
+          <a href="{{ client.linkedin_url }}" target="_blank" class="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+            LinkedIn
+          </a>
+        {% endif %}
+      </div>
+    </div>
   </div>
-  <a href="/deals/new?client_id={{ client.id }}" class="btn btn-primary">+ New Deal</a>
+  <a href="/deals/new?client_id={{ client.id }}" class="btn btn-primary flex-shrink-0">+ New Deal</a>
 </div>
 
-<div class="grid md:grid-cols-3 gap-6">
-  <!-- Details -->
-  <div class="md:col-span-2 space-y-6">
+<div class="grid lg:grid-cols-3 gap-6">
+  <!-- Left: Details + Activities -->
+  <div class="lg:col-span-2 space-y-5">
+
+    <!-- Company Details -->
     <div class="card p-5">
-      <h2 class="font-medium mb-4 text-sm">Account Details</h2>
+      <h2 class="font-semibold text-sm text-slate-700 mb-4">Company Details</h2>
       <form method="post" action="/clients/{{ client.id }}" class="space-y-4">
         <div class="grid sm:grid-cols-2 gap-4">
           <div>
@@ -29,92 +54,278 @@
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Industry</label>
-            <input name="industry" value="{{ client.industry or '' }}" class="input" />
+            <input name="industry" value="{{ client.industry or '' }}" class="input" placeholder="e.g. Healthcare" />
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Website</label>
-            <input name="website" value="{{ client.website or '' }}" class="input" />
+            <input name="website" value="{{ client.website or '' }}" class="input" placeholder="https://company.com" />
           </div>
-          {% if reps %}
-            <div>
-              <label class="block text-sm font-medium mb-1">Account Owner</label>
-              <select name="owner_id" class="select">
-                <option value="">Unassigned</option>
-                {% for rep in reps %}<option value="{{ rep.id }}" {% if client.owner_id == rep.id %}selected{% endif %}>{{ rep.full_name }}</option>{% endfor %}
-              </select>
-            </div>
-          {% endif %}
+          <div>
+            <label class="block text-sm font-medium mb-1">Email</label>
+            <input type="email" name="email" value="{{ client.email or '' }}" class="input" placeholder="info@company.com" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Phone</label>
+            <input name="phone" value="{{ client.phone or '' }}" class="input" placeholder="+1 555 0100" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium mb-1">LinkedIn</label>
+            <input name="linkedin_url" value="{{ client.linkedin_url or '' }}" class="input" placeholder="https://linkedin.com/company/..." />
+          </div>
         </div>
+
+        <!-- HQ Location -->
+        <div>
+          <p class="text-sm font-medium mb-2">Headquarters</p>
+          <div class="grid sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">City</label>
+              <input name="hq_city" value="{{ client.hq_city or '' }}" class="input" placeholder="City" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">State / Province</label>
+              <input name="hq_state" value="{{ client.hq_state or '' }}" class="input" placeholder="State" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Country</label>
+              <input name="hq_country" value="{{ client.hq_country or '' }}" class="input" placeholder="Country" />
+            </div>
+          </div>
+        </div>
+
+        {% if reps %}
+        <div>
+          <label class="block text-sm font-medium mb-1">Account Owner</label>
+          <select name="owner_id" class="select w-56">
+            <option value="">Unassigned</option>
+            {% for rep in reps %}<option value="{{ rep.id }}" {% if client.owner_id == rep.id %}selected{% endif %}>{{ rep.full_name }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
         <div>
           <label class="block text-sm font-medium mb-1">Notes</label>
           <textarea name="notes" rows="3" class="textarea">{{ client.notes or '' }}</textarea>
         </div>
         <div class="flex gap-3">
-          <button type="submit" class="btn btn-primary">Save</button>
-          <form method="post" action="/clients/{{ client.id }}/delete" onsubmit="return confirm('Delete this client and all its data?')">
-            <button type="submit" class="btn btn-danger">Delete Client</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <form method="post" action="/clients/{{ client.id }}/delete" onsubmit="return confirm('Delete this company and all its data?')">
+            <button type="submit" class="btn btn-danger">Delete</button>
           </form>
         </div>
       </form>
     </div>
 
+    <!-- Activities -->
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-sm text-slate-700">Activities ({{ activities | length }})</h2>
+        <details class="relative" x-data="{ open: false }" @click.outside="open=false">
+          <summary @click="open=!open" class="btn btn-secondary btn-sm cursor-pointer list-none">+ Log Activity</summary>
+          <div x-show="open" class="absolute right-0 top-full mt-1 z-10 w-80 card p-4 shadow-lg" style="display:none">
+            <form method="post" action="/activities/new" class="space-y-3">
+              <input type="hidden" name="redirect_to" value="/clients/{{ client.id }}" />
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium mb-1">Type</label>
+                  <select name="type_" class="select text-sm">
+                    {% for t in activity_types %}
+                      <option value="{{ t.value }}">{{ t.value | humanize }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium mb-1">Due (optional)</label>
+                  <input type="datetime-local" name="due_at" class="input text-sm" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium mb-1">Subject *</label>
+                <input name="subject" required class="input text-sm" placeholder="What happened?" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium mb-1">Notes</label>
+                <textarea name="body" rows="2" class="textarea text-sm" placeholder="Details…"></textarea>
+              </div>
+              <input type="hidden" name="client_id" value="{{ client.id }}" />
+              <button type="submit" class="btn btn-primary w-full">Log</button>
+            </form>
+          </div>
+        </details>
+      </div>
+
+      {% if activities %}
+        <div class="space-y-0">
+          {% for act in activities %}
+            <div class="flex gap-3 pb-4 {% if not loop.last %}border-b border-slate-100 mb-4{% endif %}">
+              <!-- Icon -->
+              <div class="flex-shrink-0 mt-0.5">
+                {% if act.type.value == 'call' %}
+                  <div class="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 12 19.79 19.79 0 0 1 1.15 3.18 2 2 0 0 1 3.12 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.09a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </div>
+                {% elif act.type.value == 'email' %}
+                  <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  </div>
+                {% elif act.type.value == 'meeting' %}
+                  <div class="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </div>
+                {% elif act.type.value == 'task' %}
+                  <div class="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-orange-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  </div>
+                {% else %}
+                  <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </div>
+                {% endif %}
+              </div>
+              <!-- Content -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <p class="text-sm font-medium text-slate-900">{{ act.subject }}</p>
+                    {% if act.body %}<p class="text-sm text-slate-500 mt-0.5">{{ act.body }}</p>{% endif %}
+                  </div>
+                  <div class="flex-shrink-0 text-right">
+                    {% if act.completed %}
+                      <span class="badge bg-green-100 text-green-700">Done</span>
+                    {% elif act.due_at %}
+                      <span class="text-xs text-slate-400">Due {{ act.due_at | date }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">
+                  {{ act.type.value | humanize }}
+                  {% if act.created_by %} · {{ act.created_by.full_name }}{% endif %}
+                  · {{ act.created_at | date }}
+                </p>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="py-8 text-center text-slate-400 text-sm">
+          <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          No activities yet. Log a call, email, or meeting above.
+        </div>
+      {% endif %}
+    </div>
+
     <!-- Deals -->
     <div class="card p-5">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="font-medium text-sm">Deals ({{ deals | length }})</h2>
+        <h2 class="font-semibold text-sm text-slate-700">Deals ({{ deals | length }})</h2>
         <a href="/deals/new?client_id={{ client.id }}" class="text-xs text-brand-600 hover:underline">+ Add deal</a>
       </div>
       {% if deals %}
         <table class="crm">
-          <thead><tr><th>Title</th><th>Stage</th><th>Value</th><th>Close Date</th></tr></thead>
+          <thead><tr><th>Title</th><th>Stage</th><th>Value</th><th>Owner</th><th>Close Date</th></tr></thead>
           <tbody>
             {% for deal in deals %}
               <tr>
-                <td><a href="/deals/{{ deal.id }}" class="hover:text-brand-600">{{ deal.title }}</a></td>
-                <td class="text-slate-500 text-xs">{{ deal.stage_label }}</td>
-                <td class="font-medium">{{ deal.value | currency }}</td>
+                <td><a href="/deals/{{ deal.id }}" class="hover:text-brand-600 font-medium">{{ deal.title }}</a></td>
+                <td><span class="text-xs text-slate-500">{{ deal.stage_label }}</span></td>
+                <td class="font-semibold text-brand-600">{{ deal.value | currency }}</td>
+                <td class="text-slate-500 text-sm">{{ deal.owner.full_name if deal.owner else '—' }}</td>
                 <td class="text-slate-400 text-xs">{{ deal.expected_close_date | date }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       {% else %}
-        <p class="text-sm text-slate-400">No deals yet.</p>
+        <p class="text-sm text-slate-400">No deals yet. <a href="/deals/new?client_id={{ client.id }}" class="text-brand-600 hover:underline">Add one</a>.</p>
       {% endif %}
     </div>
   </div>
 
-  <!-- Contacts -->
+  <!-- Right: Company info + Contacts -->
   <div class="space-y-4">
+
+    <!-- Quick Info -->
     <div class="card p-4">
-      <h2 class="font-medium text-sm mb-3">Contacts ({{ client.contacts | length }})</h2>
+      <h2 class="font-semibold text-sm text-slate-700 mb-3">Quick Info</h2>
+      <dl class="space-y-2.5">
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-500">Owner</dt>
+          <dd class="text-slate-900 font-medium">{{ client.owner.full_name if client.owner else '—' }}</dd>
+        </div>
+        {% if client.hq_city or client.hq_country %}
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-500">HQ</dt>
+          <dd class="text-slate-900">
+            {% set parts = [] %}
+            {% if client.hq_city %}{% set _ = parts.append(client.hq_city) %}{% endif %}
+            {% if client.hq_state %}{% set _ = parts.append(client.hq_state) %}{% endif %}
+            {% if client.hq_country %}{% set _ = parts.append(client.hq_country) %}{% endif %}
+            {{ parts | join(', ') }}
+          </dd>
+        </div>
+        {% endif %}
+        {% if client.phone %}
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-500">Phone</dt>
+          <dd class="text-slate-900"><a href="tel:{{ client.phone }}" class="hover:text-brand-600">{{ client.phone }}</a></dd>
+        </div>
+        {% endif %}
+        {% if client.email %}
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-500">Email</dt>
+          <dd class="text-slate-900"><a href="mailto:{{ client.email }}" class="hover:text-brand-600 truncate max-w-[140px] block text-right">{{ client.email }}</a></dd>
+        </div>
+        {% endif %}
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-500">Deals</dt>
+          <dd class="font-semibold text-brand-600">{{ deals | length }}</dd>
+        </div>
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-500">Activities</dt>
+          <dd class="text-slate-900">{{ activities | length }}</dd>
+        </div>
+        <div class="flex justify-between text-sm">
+          <dt class="text-slate-500">Added</dt>
+          <dd class="text-slate-500">{{ client.created_at | date }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Contacts (persons linked to this company) -->
+    <div class="card p-4">
+      <h2 class="font-semibold text-sm text-slate-700 mb-3">Contacts ({{ client.contacts | length }})</h2>
       {% for contact in client.contacts %}
-        <div class="mb-3 pb-3 border-b border-slate-100 last:border-0">
-          <div class="flex items-start justify-between">
+        <div class="mb-3 pb-3 border-b border-slate-100 last:border-0 last:mb-0 last:pb-0">
+          <div class="flex items-start justify-between gap-2">
             <div>
-              <p class="text-sm font-medium">{{ contact.full_name }} {% if contact.is_primary %}<span class="text-xs text-brand-600">Primary</span>{% endif %}</p>
+              <p class="text-sm font-medium text-slate-900">
+                {{ contact.full_name }}
+                {% if contact.is_primary %}<span class="text-xs text-brand-600 ml-1">Primary</span>{% endif %}
+              </p>
               {% if contact.title %}<p class="text-xs text-slate-500">{{ contact.title }}</p>{% endif %}
-              {% if contact.email %}<p class="text-xs text-slate-500">{{ contact.email }}</p>{% endif %}
-              {% if contact.phone %}<p class="text-xs text-slate-500">{{ contact.phone }}</p>{% endif %}
+              {% if contact.email %}
+                <a href="mailto:{{ contact.email }}" class="text-xs text-slate-400 hover:text-brand-600">{{ contact.email }}</a>
+              {% endif %}
+              {% if contact.phone %}<p class="text-xs text-slate-400">{{ contact.phone }}</p>{% endif %}
             </div>
             <form method="post" action="/clients/{{ client.id }}/contacts/{{ contact.id }}/delete">
-              <button class="text-xs text-red-400 hover:text-red-600">✕</button>
+              <button class="text-slate-300 hover:text-red-500 text-xs">✕</button>
             </form>
           </div>
         </div>
       {% endfor %}
 
-      <details class="mt-2">
-        <summary class="text-sm text-brand-600 cursor-pointer hover:underline">+ Add contact</summary>
+      <details class="mt-3">
+        <summary class="text-sm text-brand-600 cursor-pointer hover:underline">+ Add contact person</summary>
         <form method="post" action="/clients/{{ client.id }}/contacts/add" class="mt-3 space-y-2">
           <input name="full_name" placeholder="Full name *" required class="input text-sm" />
           <input name="title" placeholder="Title (e.g. Hiring Manager)" class="input text-sm" />
           <input type="email" name="email" placeholder="Email" class="input text-sm" />
           <input name="phone" placeholder="Phone" class="input text-sm" />
-          <label class="flex items-center gap-2 text-sm">
+          <label class="flex items-center gap-2 text-sm text-slate-600">
             <input type="checkbox" name="is_primary" value="true" class="rounded" /> Primary contact
           </label>
-          <button type="submit" class="btn btn-primary w-full">Add Contact</button>
+          <button type="submit" class="btn btn-primary w-full">Add</button>
         </form>
       </details>
     </div>

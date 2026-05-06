@@ -62,13 +62,14 @@ def seed():
 
     # Leads
     leads_data = [
-        ("David Kim", "NovaCare Health", "david@novacare.com", LeadStatus.NEW, sales1.id),
-        ("Priya Patel", "MedStaff Pro", "priya@medstaff.com", LeadStatus.CONTACTED, sales1.id),
-        ("Tom Wilson", "Allied Health", "tom@alliedhealth.com", LeadStatus.QUALIFIED, sales2.id),
-        ("Lisa Park", "CareFirst MSP", "lisa@carefirst.com", LeadStatus.DISQUALIFIED, sales2.id),
+        ("David", "Kim", "NovaCare Health", "david@novacare.com", "Director of Nursing", LeadStatus.NEW, sales1.id),
+        ("Priya", "Patel", "MedStaff Pro", "priya@medstaff.com", "VP Procurement", LeadStatus.CONTACTED, sales1.id),
+        ("Tom", "Wilson", "Allied Health", "tom@alliedhealth.com", "HR Manager", LeadStatus.QUALIFIED, sales2.id),
+        ("Lisa", "Park", "CareFirst MSP", "lisa@carefirst.com", "Hiring Manager", LeadStatus.DISQUALIFIED, sales2.id),
     ]
-    for name, company, email, status, owner_id in leads_data:
-        db.add(Lead(name=name, company=company, email=email, status=status, owner_id=owner_id, source="LinkedIn"))
+    for first, last, company, email, title, status, owner_id in leads_data:
+        db.add(Lead(first_name=first, last_name=last, company=company, email=email,
+                    job_title=title, status=status, owner_id=owner_id, source="LinkedIn"))
     db.flush()
 
     # Clients

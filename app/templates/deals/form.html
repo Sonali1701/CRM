@@ -14,9 +14,9 @@
           <input name="title" required class="input" placeholder="e.g. Acme Corp – 5 RN placements" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">Client</label>
+          <label class="block text-sm font-medium mb-1">Company</label>
           <select name="client_id" class="select">
-            <option value="">— Select client —</option>
+            <option value="">— Select company —</option>
             {% for c in clients %}<option value="{{ c.id }}" {% if prefill_client_id and c.id == prefill_client_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
           </select>
         </div>

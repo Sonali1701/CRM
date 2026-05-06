@@ -58,12 +58,19 @@ def _evict_old_sessions():
 # ── CRM field definitions ─────────────────────────────────────────────────────
 
 LEAD_FIELDS = [
-    {"key": "name",    "label": "Name",    "required": True},
-    {"key": "company", "label": "Company", "required": False},
-    {"key": "email",   "label": "Email",   "required": False},
-    {"key": "phone",   "label": "Phone",   "required": False},
-    {"key": "source",  "label": "Source",  "required": False},
-    {"key": "notes",   "label": "Notes",   "required": False},
+    {"key": "first_name", "label": "First Name",    "required": True},
+    {"key": "last_name",  "label": "Last Name",     "required": False},
+    {"key": "job_title",  "label": "Job Title",     "required": False},
+    {"key": "company",    "label": "Company",       "required": False},
+    {"key": "email",      "label": "Email",         "required": False},
+    {"key": "mobile",     "label": "Mobile",        "required": False},
+    {"key": "phone",      "label": "Phone",         "required": False},
+    {"key": "linkedin_url","label": "LinkedIn URL", "required": False},
+    {"key": "city",       "label": "City",          "required": False},
+    {"key": "state",      "label": "State",         "required": False},
+    {"key": "country",    "label": "Country",       "required": False},
+    {"key": "source",     "label": "Source",        "required": False},
+    {"key": "notes",      "label": "Notes",         "required": False},
 ]
 
 CLIENT_FIELDS = [
@@ -76,15 +83,21 @@ CLIENT_FIELDS = [
 
 # Auto-mapping aliases: crm_field → [possible column names]
 _LEAD_ALIASES: dict[str, list[str]] = {
-    "name":    ["name", "full name", "fullname", "contact name", "lead name",
-                "first name", "firstname", "person"],
-    "company": ["company", "company name", "organization", "organisation",
-                "account", "account name", "firm", "employer"],
-    "email":   ["email", "email address", "e-mail", "mail", "email id"],
-    "phone":   ["phone", "phone number", "mobile", "mobile number", "cell",
-                "telephone", "contact number", "ph"],
-    "source":  ["source", "lead source", "channel", "origin", "how did you hear"],
-    "notes":   ["notes", "note", "comments", "comment", "description", "remarks"],
+    "first_name":  ["first name", "firstname", "first", "given name", "name", "full name",
+                    "fullname", "contact name", "lead name", "person"],
+    "last_name":   ["last name", "lastname", "last", "surname", "family name"],
+    "job_title":   ["job title", "title", "position", "role", "designation"],
+    "company":     ["company", "company name", "organization", "organisation",
+                    "account", "account name", "firm", "employer"],
+    "email":       ["email", "email address", "e-mail", "mail", "email id"],
+    "mobile":      ["mobile", "mobile number", "cell", "cell phone", "cellphone"],
+    "phone":       ["phone", "phone number", "telephone", "contact number", "ph", "office phone"],
+    "linkedin_url":["linkedin", "linkedin url", "linkedin profile", "linkedin link"],
+    "city":        ["city", "town"],
+    "state":       ["state", "province", "region"],
+    "country":     ["country", "nation"],
+    "source":      ["source", "lead source", "channel", "origin", "how did you hear"],
+    "notes":       ["notes", "note", "comments", "comment", "description", "remarks"],
 }
 
 _CLIENT_ALIASES: dict[str, list[str]] = {
@@ -187,11 +200,11 @@ def _parse_csv(raw: bytes) -> tuple[list[str], list[dict]] | str:
 
 @router.get("/leads/template.csv")
 def leads_template():
-    lines = ["name,company,email,phone,source,notes",
-             "John Smith,Acme Corp,john@acme.com,555-1234,LinkedIn,Met at conference"]
+    lines = ["first_name,last_name,job_title,company,email,mobile,phone,linkedin_url,city,state,country,source,notes",
+             "John,Smith,Hiring Manager,Acme Corp,john@acme.com,+1 555 0100,+1 555 0200,https://linkedin.com/in/john,New York,NY,USA,LinkedIn,Met at conference"]
     return StreamingResponse(io.BytesIO("\n".join(lines).encode()),
                              media_type="text/csv",
-                             headers={"Content-Disposition": "attachment; filename=leads_template.csv"})
+                             headers={"Content-Disposition": "attachment; filename=contacts_template.csv"})
 
 
 @router.get("/clients/template.csv")
@@ -340,25 +353,33 @@ def _get_val(row: dict, col: str) -> str:
 
 def _import_leads(rows: list[dict], mapping: dict, user: User, db: Session) -> dict:
     imported, skipped = [], []
-    name_col = mapping.get("name", "")
+    first_col = mapping.get("first_name", "")
 
     for i, row in enumerate(rows, start=2):
-        name = _get_val(row, name_col)
-        if not name:
-            skipped.append({"row": i, "data": row, "reason": "Name is empty"})
+        first_name = _get_val(row, first_col)
+        if not first_name:
+            skipped.append({"row": i, "data": row, "reason": "First name is empty"})
             continue
         lead = Lead(
-            name=name,
+            first_name=first_name,
+            last_name=_get_val(row, mapping.get("last_name", "")) or None,
+            job_title=_get_val(row, mapping.get("job_title", "")) or None,
             company=_get_val(row, mapping.get("company", "")) or None,
             email=_get_val(row, mapping.get("email", "")) or None,
+            mobile=_get_val(row, mapping.get("mobile", "")) or None,
             phone=_get_val(row, mapping.get("phone", "")) or None,
+            linkedin_url=_get_val(row, mapping.get("linkedin_url", "")) or None,
+            city=_get_val(row, mapping.get("city", "")) or None,
+            state=_get_val(row, mapping.get("state", "")) or None,
+            country=_get_val(row, mapping.get("country", "")) or None,
             source=_get_val(row, mapping.get("source", "")) or None,
             notes=_get_val(row, mapping.get("notes", "")) or None,
             status=LeadStatus.NEW,
             owner_id=user.id,
         )
         db.add(lead)
-        imported.append({"row": i, "name": name, "company": _get_val(row, mapping.get("company", ""))})
+        company = _get_val(row, mapping.get("company", ""))
+        imported.append({"row": i, "name": first_name, "company": company})
 
     db.commit()
     return {"imported": imported, "skipped": skipped}

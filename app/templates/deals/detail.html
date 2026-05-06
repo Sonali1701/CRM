@@ -49,7 +49,7 @@
             <input name="title" value="{{ deal.title }}" required class="input" />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Client</label>
+            <label class="block text-sm font-medium mb-1">Company</label>
             <select name="client_id" class="select">
               <option value="">— None —</option>
               {% for c in clients %}<option value="{{ c.id }}" {% if deal.client_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
@@ -149,7 +149,7 @@
   <div class="space-y-4">
     <div class="card p-4 text-sm space-y-2">
       <h2 class="font-medium mb-2">Quick Info</h2>
-      <p class="flex justify-between"><span class="text-slate-500">Client</span> <span>{{ deal.client.name if deal.client else '—' }}</span></p>
+      <p class="flex justify-between"><span class="text-slate-500">Company</span> <span>{% if deal.client %}<a href="/clients/{{ deal.client_id }}" class="hover:text-brand-600">{{ deal.client.name }}</a>{% else %}—{% endif %}</span></p>
       <p class="flex justify-between"><span class="text-slate-500">Owner</span> <span>{{ deal.owner.full_name if deal.owner else '—' }}</span></p>
       <p class="flex justify-between"><span class="text-slate-500">Probability</span> <span>{{ deal.probability }}%</span></p>
       <p class="flex justify-between"><span class="text-slate-500">Created</span> <span>{{ deal.created_at | date }}</span></p>

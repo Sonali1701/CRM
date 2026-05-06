@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -26,7 +27,10 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
         q = q.filter(Lead.status == status)
     if search:
         like = f"%{search}%"
-        q = q.filter((Lead.name.ilike(like)) | (Lead.company.ilike(like)) | (Lead.email.ilike(like)))
+        q = q.filter(
+            or_(Lead.first_name.ilike(like), Lead.last_name.ilike(like),
+                Lead.company.ilike(like), Lead.email.ilike(like))
+        )
     leads = q.order_by(Lead.created_at.desc()).all()
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
     return templates.TemplateResponse(request, "leads/list.html", {
@@ -39,55 +43,81 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
 @router.get("/new")
 def lead_new(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
+    clients = db.query(Client).order_by(Client.name).all()
     return templates.TemplateResponse(request, "leads/form.html", {
-        "user": user, "lead": None, "reps": reps, "statuses": list(LeadStatus),
+        "user": user, "lead": None, "reps": reps, "statuses": list(LeadStatus), "clients": clients,
     })
 
 
 @router.post("/new")
 def lead_create(
     request: Request,
-    name: str = Form(...), company: str = Form(""), email: str = Form(""),
-    phone: str = Form(""), source: str = Form(""), notes: str = Form(""),
+    first_name: str = Form(...), last_name: str = Form(""),
+    job_title: str = Form(""), company: str = Form(""),
+    email: str = Form(""), mobile: str = Form(""), phone: str = Form(""),
+    linkedin_url: str = Form(""),
+    city: str = Form(""), state: str = Form(""), country: str = Form(""),
+    source: str = Form(""), notes: str = Form(""),
     owner_id: int = Form(None),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     lead = Lead(
-        name=name, company=company or None, email=email or None,
-        phone=phone or None, source=source or None, notes=notes or None,
+        first_name=first_name, last_name=last_name or None,
+        job_title=job_title or None, company=company or None,
+        email=email or None, mobile=mobile or None, phone=phone or None,
+        linkedin_url=linkedin_url or None,
+        city=city or None, state=state or None, country=country or None,
+        source=source or None, notes=notes or None,
         owner_id=owner_id if user.is_manager else user.id,
         status=LeadStatus.NEW,
     )
-    db.add(lead); db.commit()
-    return flash(RedirectResponse("/leads", 303), "Lead created.")
+    db.add(lead)
+    db.commit()
+    return flash(RedirectResponse("/leads", 303), "Contact created.")
 
 
 @router.get("/{lead_id}")
 def lead_detail(lead_id: int, request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
     lead = _get_lead(lead_id, user, db)
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
+    clients = db.query(Client).order_by(Client.name).all()
     return templates.TemplateResponse(request, "leads/form.html", {
         "user": user, "flash": get_flash(request),
-        "lead": lead, "reps": reps, "statuses": list(LeadStatus),
+        "lead": lead, "reps": reps, "statuses": list(LeadStatus), "clients": clients,
     })
 
 
 @router.post("/{lead_id}")
 def lead_update(
     lead_id: int, request: Request,
-    name: str = Form(...), company: str = Form(""), email: str = Form(""),
-    phone: str = Form(""), source: str = Form(""), notes: str = Form(""),
+    first_name: str = Form(...), last_name: str = Form(""),
+    job_title: str = Form(""), company: str = Form(""),
+    email: str = Form(""), mobile: str = Form(""), phone: str = Form(""),
+    linkedin_url: str = Form(""),
+    city: str = Form(""), state: str = Form(""), country: str = Form(""),
+    source: str = Form(""), notes: str = Form(""),
     status: str = Form(...), owner_id: int = Form(None),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     lead = _get_lead(lead_id, user, db)
-    lead.name = name; lead.company = company or None; lead.email = email or None
-    lead.phone = phone or None; lead.source = source or None; lead.notes = notes or None
+    lead.first_name = first_name
+    lead.last_name = last_name or None
+    lead.job_title = job_title or None
+    lead.company = company or None
+    lead.email = email or None
+    lead.mobile = mobile or None
+    lead.phone = phone or None
+    lead.linkedin_url = linkedin_url or None
+    lead.city = city or None
+    lead.state = state or None
+    lead.country = country or None
+    lead.source = source or None
+    lead.notes = notes or None
     lead.status = LeadStatus(status)
     if user.is_manager and owner_id:
         lead.owner_id = owner_id
     db.commit()
-    return flash(RedirectResponse("/leads", 303), "Lead updated.")
+    return flash(RedirectResponse("/leads", 303), "Contact updated.")
 
 
 @router.post("/{lead_id}/convert")
@@ -97,18 +127,20 @@ def lead_convert(lead_id: int, user: User = Depends(require_user), db: Session =
         name=lead.company or lead.name,
         owner_id=lead.owner_id or user.id,
     )
-    db.add(client); db.flush()
+    db.add(client)
+    db.flush()
     lead.status = LeadStatus.CONVERTED
     lead.converted_client_id = client.id
     db.commit()
-    return flash(RedirectResponse(f"/clients/{client.id}", 303), f"Lead converted to client: {client.name}")
+    return flash(RedirectResponse(f"/clients/{client.id}", 303), f"Contact converted to company: {client.name}")
 
 
 @router.post("/{lead_id}/delete")
 def lead_delete(lead_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
     lead = _get_lead(lead_id, user, db)
-    db.delete(lead); db.commit()
-    return flash(RedirectResponse("/leads", 303), "Lead deleted.", "error")
+    db.delete(lead)
+    db.commit()
+    return flash(RedirectResponse("/leads", 303), "Contact deleted.", "error")
 
 
 @router.post("/{lead_id}/assign")
@@ -123,7 +155,6 @@ async def lead_assign(
     lead = _get_lead_any(lead_id, db)
     lead.owner_id = owner_id or None
     db.commit()
-    # Re-fetch owner for display
     reps = db.query(User).filter(User.is_active == True).all()
     return templates.TemplateResponse(request, "leads/_row.html", {
         "lead": lead, "user": user, "reps": reps,
@@ -134,7 +165,7 @@ def _get_lead_any(lead_id: int, db: Session) -> Lead:
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         from fastapi import HTTPException
-        raise HTTPException(404, "Lead not found")
+        raise HTTPException(404, "Contact not found")
     return lead
 
 
@@ -145,5 +176,5 @@ def _get_lead(lead_id: int, user: User, db: Session) -> Lead:
     lead = q.first()
     if not lead:
         from fastapi import HTTPException
-        raise HTTPException(404, "Lead not found")
+        raise HTTPException(404, "Contact not found")
     return lead

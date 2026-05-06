@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}New Client – Radixsol CRM{% endblock %}
+{% block title %}New Company – Radixsol CRM{% endblock %}
 {% block content %}
 <div class="max-w-2xl"
   x-data="{
@@ -20,24 +20,25 @@
           if (data.name)     document.getElementById('f-name').value     = data.name;
           if (data.industry) document.getElementById('f-industry').value = data.industry;
           if (data.description) document.getElementById('f-notes').value = data.description;
+          if (data.social && data.social.linkedin) document.getElementById('f-linkedin').value = data.social.linkedin;
         }
       } catch(e) { this.error = 'Could not reach the server. Try again.'; }
       finally { this.loading = false; }
     }
   }">
 
-  <div class="mb-4 flex items-center gap-3">
-    <a href="/clients" class="text-slate-400 hover:text-slate-600 text-sm">← Clients</a>
-    <h1 class="text-xl font-semibold">New Client</h1>
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/clients" class="text-slate-400 hover:text-slate-600 text-sm">← Companies</a>
+    <h1 class="text-xl font-semibold">New Company</h1>
   </div>
 
   <div class="card p-6 space-y-5">
 
-    <!-- Website fetch section -->
+    <!-- Website enrichment -->
     <div class="space-y-2">
       <label class="block text-sm font-medium">Company Website</label>
       <div class="flex gap-2">
-        <input type="text" id="f-website" name="website" x-model="website"
+        <input type="text" id="f-website" x-model="website"
           placeholder="https://company.com"
           class="input flex-1"
           @keydown.enter.prevent="fetchDetails" />
@@ -55,81 +56,44 @@
       </div>
       <p class="text-xs text-slate-400">Paste the company website and we'll auto-fill what we can find.</p>
 
-      <!-- Error -->
-      <div x-show="error" x-cloak
-        class="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700" x-text="error"></div>
+      <div x-show="error" x-cloak class="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700" x-text="error"></div>
 
-      <!-- Enrichment results panel -->
       <div x-show="enriched" x-cloak class="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
-        <p class="text-sm font-medium text-green-800">Found the following — fields below have been pre-filled:</p>
-
+        <p class="text-sm font-medium text-green-800">Found the following — fields have been pre-filled:</p>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <template x-if="enriched && enriched.name">
-            <div class="col-span-2 flex gap-2">
-              <span class="text-slate-500 w-24 flex-shrink-0">Name</span>
-              <span class="font-medium" x-text="enriched.name"></span>
-            </div>
+            <div class="col-span-2 flex gap-2"><span class="text-slate-500 w-24 flex-shrink-0">Name</span><span class="font-medium" x-text="enriched.name"></span></div>
           </template>
           <template x-if="enriched && enriched.industry">
-            <div class="col-span-2 flex gap-2">
-              <span class="text-slate-500 w-24 flex-shrink-0">Industry</span>
-              <span x-text="enriched.industry"></span>
-            </div>
-          </template>
-          <template x-if="enriched && enriched.description">
-            <div class="col-span-2 flex gap-2">
-              <span class="text-slate-500 w-24 flex-shrink-0">Description</span>
-              <span class="text-slate-700 line-clamp-2" x-text="enriched.description"></span>
-            </div>
+            <div class="col-span-2 flex gap-2"><span class="text-slate-500 w-24 flex-shrink-0">Industry</span><span x-text="enriched.industry"></span></div>
           </template>
         </div>
-
-        <!-- Emails found -->
         <template x-if="enriched && enriched.emails && enriched.emails.length">
           <div class="text-sm">
-            <p class="text-slate-500 mb-1 text-xs font-medium uppercase tracking-wide">Emails found on site</p>
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Emails found</p>
             <div class="flex flex-wrap gap-2">
               <template x-for="email in enriched.emails">
-                <span class="badge bg-blue-100 text-blue-700 cursor-pointer hover:bg-blue-200"
-                  x-text="email"
-                  title="Click to copy"
-                  @click="navigator.clipboard.writeText(email)"></span>
+                <span class="badge bg-blue-100 text-blue-700 cursor-pointer hover:bg-blue-200" x-text="email" @click="navigator.clipboard.writeText(email)" title="Click to copy"></span>
               </template>
             </div>
-            <p class="text-xs text-slate-400 mt-1">Click to copy — then add as a contact after saving.</p>
           </div>
         </template>
-
-        <!-- Phones found -->
         <template x-if="enriched && enriched.phones && enriched.phones.length">
           <div class="text-sm">
-            <p class="text-slate-500 mb-1 text-xs font-medium uppercase tracking-wide">Phone numbers found</p>
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Phones found</p>
             <div class="flex flex-wrap gap-2">
               <template x-for="phone in enriched.phones">
-                <span class="badge bg-slate-100 text-slate-700 cursor-pointer hover:bg-slate-200"
-                  x-text="phone" @click="navigator.clipboard.writeText(phone)" title="Click to copy"></span>
+                <span class="badge bg-slate-100 text-slate-700 cursor-pointer hover:bg-slate-200" x-text="phone" @click="navigator.clipboard.writeText(phone)" title="Click to copy"></span>
               </template>
             </div>
           </div>
         </template>
-
-        <!-- Social links -->
         <template x-if="enriched && enriched.social && Object.keys(enriched.social).length">
           <div class="text-sm">
-            <p class="text-slate-500 mb-1 text-xs font-medium uppercase tracking-wide">Social / Professional</p>
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Social / Professional</p>
             <div class="flex flex-wrap gap-2">
-              <template x-if="enriched.social.linkedin">
-                <a :href="enriched.social.linkedin" target="_blank"
-                  class="badge bg-blue-600 text-white hover:bg-blue-700">LinkedIn ↗</a>
-              </template>
-              <template x-if="enriched.social.twitter">
-                <a :href="enriched.social.twitter" target="_blank"
-                  class="badge bg-slate-800 text-white hover:bg-slate-900">Twitter/X ↗</a>
-              </template>
-              <template x-if="enriched.social.facebook">
-                <a :href="enriched.social.facebook" target="_blank"
-                  class="badge bg-blue-500 text-white hover:bg-blue-600">Facebook ↗</a>
-              </template>
+              <template x-if="enriched.social.linkedin"><a :href="enriched.social.linkedin" target="_blank" class="badge bg-blue-600 text-white hover:bg-blue-700">LinkedIn ↗</a></template>
+              <template x-if="enriched.social.twitter"><a :href="enriched.social.twitter" target="_blank" class="badge bg-slate-800 text-white hover:bg-slate-900">Twitter/X ↗</a></template>
             </div>
           </div>
         </template>
@@ -138,15 +102,13 @@
 
     <hr class="border-slate-200" />
 
-    <!-- Main form -->
     <form method="post" action="/clients/new" class="space-y-4">
-      <!-- carry website into form submit -->
       <input type="hidden" name="website" :value="website" />
 
       <div class="grid sm:grid-cols-2 gap-4">
         <div class="sm:col-span-2">
-          <label class="block text-sm font-medium mb-1">Company Name *</label>
-          <input id="f-name" name="name" required class="input" />
+          <label class="block text-sm font-medium mb-1">Company Name <span class="text-red-500">*</span></label>
+          <input id="f-name" name="name" required class="input" placeholder="e.g. Acme Healthcare" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Type</label>
@@ -158,23 +120,47 @@
           <label class="block text-sm font-medium mb-1">Industry</label>
           <input id="f-industry" name="industry" class="input" placeholder="Healthcare, Technology…" />
         </div>
-        {% if reps %}
-          <div>
-            <label class="block text-sm font-medium mb-1">Account Owner</label>
-            <select name="owner_id" class="select">
-              <option value="">Unassigned</option>
-              {% for rep in reps %}<option value="{{ rep.id }}">{{ rep.full_name }}</option>{% endfor %}
-            </select>
-          </div>
-        {% endif %}
+        <div>
+          <label class="block text-sm font-medium mb-1">Email</label>
+          <input type="email" name="email" class="input" placeholder="info@company.com" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Phone</label>
+          <input name="phone" class="input" placeholder="+1 555 0100" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-medium mb-1">LinkedIn</label>
+          <input id="f-linkedin" name="linkedin_url" class="input" placeholder="https://linkedin.com/company/..." />
+        </div>
       </div>
+
+      <!-- HQ Location -->
+      <div>
+        <p class="text-sm font-medium mb-2">Headquarters</p>
+        <div class="grid sm:grid-cols-3 gap-3">
+          <div><label class="block text-xs text-slate-500 mb-1">City</label><input name="hq_city" class="input" placeholder="City" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1">State / Province</label><input name="hq_state" class="input" placeholder="State" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1">Country</label><input name="hq_country" class="input" placeholder="Country" /></div>
+        </div>
+      </div>
+
+      {% if reps %}
+      <div>
+        <label class="block text-sm font-medium mb-1">Account Owner</label>
+        <select name="owner_id" class="select w-56">
+          <option value="">Unassigned</option>
+          {% for rep in reps %}<option value="{{ rep.id }}">{{ rep.full_name }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
       <div>
         <label class="block text-sm font-medium mb-1">Notes / About</label>
-        <textarea id="f-notes" name="notes" rows="3" class="textarea"
-          placeholder="About this company — auto-filled from website if available"></textarea>
+        <textarea id="f-notes" name="notes" rows="3" class="textarea" placeholder="About this company…"></textarea>
       </div>
+
       <div class="flex gap-3 pt-2">
-        <button type="submit" class="btn btn-primary">Create Client</button>
+        <button type="submit" class="btn btn-primary">Create Company</button>
         <a href="/clients" class="btn btn-secondary">Cancel</a>
       </div>
     </form>

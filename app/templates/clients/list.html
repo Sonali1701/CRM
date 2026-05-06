@@ -1,48 +1,106 @@
 {% extends "base.html" %}
-{% block title %}Clients – Radixsol CRM{% endblock %}
+{% block title %}Companies – Radixsol CRM{% endblock %}
 {% block content %}
-<div class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-  <h1 class="text-xl font-semibold">Clients</h1>
+<div class="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+  <div>
+    <h1 class="text-xl font-semibold">Companies</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ clients | length }} compan{% if clients | length == 1 %}y{% else %}ies{% endif %}{% if search or filter_type %} (filtered){% endif %}</p>
+  </div>
   <div class="flex gap-2">
-    <a href="/import/clients/import" class="btn btn-secondary">Import CSV</a>
-    <a href="/clients/new" class="btn btn-primary">+ New Client</a>
+    <a href="/import/clients/import" class="btn btn-secondary">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Import
+    </a>
+    <a href="/clients/new" class="btn btn-primary">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Company
+    </a>
   </div>
 </div>
 
-<div class="card mb-4 p-3">
-  <form method="get" action="/clients" class="flex flex-wrap gap-2">
-    <input name="search" value="{{ search }}" placeholder="Search by name…" class="input w-48 flex-1" />
-    <select name="type_" class="select w-36">
+<!-- Filters -->
+<div class="card p-3 mb-4">
+  <form method="get" action="/clients" class="flex flex-wrap gap-2 items-center">
+    <div class="relative flex-1 min-w-[180px]">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input name="search" value="{{ search }}" placeholder="Search by company name…" class="input pl-9" />
+    </div>
+    <select name="type_" class="select w-40">
       <option value="">All types</option>
       {% for t in types %}
         <option value="{{ t.value }}" {% if filter_type == t.value %}selected{% endif %}>{{ t.value | humanize }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-secondary">Filter</button>
-    {% if search or filter_type %}<a href="/clients" class="btn btn-secondary">Clear</a>{% endif %}
+    {% if search or filter_type %}<a href="/clients" class="btn btn-ghost">Clear</a>{% endif %}
   </form>
 </div>
 
-<div class="card overflow-hidden">
+<!-- Table -->
+<div class="card overflow-x-auto">
   {% if clients %}
     <table class="crm">
-      <thead><tr><th>Name</th><th>Type</th><th>Industry</th><th>Contacts</th><th>Deals</th><th>Owner</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Type</th>
+          <th>Industry</th>
+          <th>Headquarters</th>
+          <th>Website</th>
+          <th>Contacts</th>
+          <th>Deals</th>
+          <th>Owner</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for client in clients %}
           <tr>
-            <td><a href="/clients/{{ client.id }}" class="font-medium hover:text-brand-600">{{ client.name }}</a></td>
+            <td>
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
+                  style="background:hsl({{ (client.name | length * 53) % 360 }},50%,50%)">
+                  {{ client.name[:2].upper() }}
+                </div>
+                <div>
+                  <a href="/clients/{{ client.id }}" class="font-medium text-slate-900 hover:text-brand-600">{{ client.name }}</a>
+                  {% if client.email %}<p class="text-xs text-slate-400">{{ client.email }}</p>{% endif %}
+                </div>
+              </div>
+            </td>
             <td><span class="badge bg-slate-100 text-slate-600">{{ client.type.value | humanize }}</span></td>
-            <td class="text-slate-500">{{ client.industry or '—' }}</td>
-            <td class="text-slate-500">{{ client.contacts | length }}</td>
-            <td class="text-slate-500">{{ client.deals | length }}</td>
-            <td class="text-slate-500">{{ client.owner.full_name if client.owner else '—' }}</td>
-            <td><a href="/clients/{{ client.id }}" class="text-xs text-brand-600 hover:underline">View</a></td>
+            <td class="text-slate-500 text-sm">{{ client.industry or '—' }}</td>
+            <td class="text-slate-500 text-sm">
+              {% set parts = [] %}
+              {% if client.hq_city %}{% set _ = parts.append(client.hq_city) %}{% endif %}
+              {% if client.hq_state %}{% set _ = parts.append(client.hq_state) %}{% endif %}
+              {% if client.hq_country %}{% set _ = parts.append(client.hq_country) %}{% endif %}
+              {{ parts | join(', ') or '—' }}
+            </td>
+            <td class="text-sm">
+              {% if client.website %}
+                <a href="{{ client.website }}" target="_blank" class="text-brand-600 hover:underline truncate max-w-[140px] block">
+                  {{ client.website | replace('https://', '') | replace('http://', '') | truncate(30) }}
+                </a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-slate-500 text-sm">{{ client.contacts | length }}</td>
+            <td class="text-slate-500 text-sm">{{ client.deals | length }}</td>
+            <td class="text-slate-500 text-sm">{{ client.owner.full_name if client.owner else '—' }}</td>
+            <td>
+              <a href="/clients/{{ client.id }}" class="btn btn-ghost btn-sm">View</a>
+            </td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
   {% else %}
-    <div class="p-8 text-center text-slate-400">No clients found. <a href="/clients/new" class="text-brand-600 hover:underline">Add one</a>.</div>
+    <div class="py-16 text-center">
+      <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <p class="text-slate-500 font-medium mb-1">No companies found</p>
+      <p class="text-slate-400 text-sm mb-4">Add your first company or import from a CSV.</p>
+      <a href="/clients/new" class="btn btn-primary">Add Company</a>
+    </div>
   {% endif %}
 </div>
 {% endblock %}

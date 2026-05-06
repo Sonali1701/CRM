@@ -24,6 +24,16 @@ class Client(Base):
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # HQ location
+    hq_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    hq_state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    hq_country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Contact info
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    linkedin_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(

@@ -1,68 +1,139 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit Lead' if lead else 'New Lead' }} – Radixsol CRM{% endblock %}
+{% block title %}{{ 'Edit Contact' if lead else 'New Contact' }} – Radixsol CRM{% endblock %}
 {% block content %}
-<div class="max-w-2xl">
-  <div class="mb-4 flex items-center gap-3">
-    <a href="/leads" class="text-slate-400 hover:text-slate-600 text-sm">← Leads</a>
-    <h1 class="text-xl font-semibold">{{ 'Edit Lead' if lead else 'New Lead' }}</h1>
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/leads" class="text-slate-400 hover:text-slate-600 text-sm">← Contacts</a>
+    <h1 class="text-xl font-semibold">{{ 'Edit Contact' if lead else 'New Contact' }}</h1>
+    {% if lead %}<span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span>{% endif %}
   </div>
 
   <div class="card p-6">
-    <form method="post" action="{{ '/leads/' + lead.id | string if lead else '/leads/new' }}" class="space-y-4">
+    <form method="post" action="{{ '/leads/' + (lead.id | string) if lead else '/leads/new' }}" class="space-y-5">
+
+      <!-- Name row -->
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">Name *</label>
-          <input name="name" value="{{ lead.name if lead else '' }}" required class="input" />
+          <label class="block text-sm font-medium mb-1">First Name <span class="text-red-500">*</span></label>
+          <input name="first_name" value="{{ lead.first_name if lead else '' }}" required class="input" placeholder="First name" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Last Name</label>
+          <input name="last_name" value="{{ lead.last_name if lead else '' }}" class="input" placeholder="Last name" />
+        </div>
+      </div>
+
+      <!-- Professional info -->
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Job Title</label>
+          <input name="job_title" value="{{ lead.job_title if lead else '' }}" class="input" placeholder="e.g. Hiring Manager" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Company</label>
-          <input name="company" value="{{ lead.company if lead else '' }}" class="input" />
+          <input name="company" value="{{ lead.company if lead else '' }}" class="input" placeholder="Company name" list="companies-list" />
+          {% if clients %}
+          <datalist id="companies-list">
+            {% for c in clients %}<option value="{{ c.name }}">{% endfor %}
+          </datalist>
+          {% endif %}
         </div>
+      </div>
+
+      <!-- Contact info -->
+      <div class="grid sm:grid-cols-3 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">Email</label>
-          <input type="email" name="email" value="{{ lead.email if lead else '' }}" class="input" />
+          <input type="email" name="email" value="{{ lead.email if lead else '' }}" class="input" placeholder="email@example.com" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Mobile</label>
+          <input name="mobile" value="{{ lead.mobile if lead else '' }}" class="input" placeholder="+1 555 0100" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Phone</label>
-          <input name="phone" value="{{ lead.phone if lead else '' }}" class="input" />
+          <input name="phone" value="{{ lead.phone if lead else '' }}" class="input" placeholder="+1 555 0200" />
         </div>
+      </div>
+
+      <!-- LinkedIn -->
+      <div>
+        <label class="block text-sm font-medium mb-1">LinkedIn Profile URL</label>
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+          <input name="linkedin_url" value="{{ lead.linkedin_url if lead else '' }}" class="input pl-9" placeholder="https://linkedin.com/in/..." />
+        </div>
+      </div>
+
+      <!-- Location -->
+      <div>
+        <p class="text-sm font-medium mb-2">Location</p>
+        <div class="grid sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">City</label>
+            <input name="city" value="{{ lead.city if lead else '' }}" class="input" placeholder="City" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">State / Province</label>
+            <input name="state" value="{{ lead.state if lead else '' }}" class="input" placeholder="State" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Country</label>
+            <input name="country" value="{{ lead.country if lead else '' }}" class="input" placeholder="Country" />
+          </div>
+        </div>
+      </div>
+
+      <!-- CRM fields -->
+      <div class="grid sm:grid-cols-3 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">Source</label>
           <input name="source" value="{{ lead.source if lead else '' }}" placeholder="LinkedIn, Referral…" class="input" />
         </div>
         {% if lead %}
-          <div>
-            <label class="block text-sm font-medium mb-1">Status</label>
-            <select name="status" class="select">
-              {% for s in statuses %}
-                <option value="{{ s.value }}" {% if lead and lead.status.value == s.value %}selected{% endif %}>{{ s.value | humanize }}</option>
-              {% endfor %}
-            </select>
-          </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Status</label>
+          <select name="status" class="select">
+            {% for s in statuses %}
+              <option value="{{ s.value }}" {% if lead.status.value == s.value %}selected{% endif %}>{{ s.value | humanize }}</option>
+            {% endfor %}
+          </select>
+        </div>
         {% endif %}
         {% if reps %}
-          <div>
-            <label class="block text-sm font-medium mb-1">Assign to</label>
-            <select name="owner_id" class="select">
-              <option value="">Unassigned</option>
-              {% for rep in reps %}
-                <option value="{{ rep.id }}" {% if lead and lead.owner_id == rep.id %}selected{% endif %}>{{ rep.full_name }}</option>
-              {% endfor %}
-            </select>
-          </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Assigned To</label>
+          <select name="owner_id" class="select">
+            <option value="">Unassigned</option>
+            {% for rep in reps %}
+              <option value="{{ rep.id }}" {% if lead and lead.owner_id == rep.id %}selected{% endif %}>{{ rep.full_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
         {% endif %}
       </div>
+
+      <!-- Notes -->
       <div>
         <label class="block text-sm font-medium mb-1">Notes</label>
-        <textarea name="notes" rows="3" class="textarea">{{ lead.notes if lead else '' }}</textarea>
+        <textarea name="notes" rows="3" class="textarea" placeholder="Any notes about this contact…">{{ lead.notes if lead else '' }}</textarea>
       </div>
-      <div class="flex gap-3 pt-2">
-        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if lead else 'Create Lead' }}</button>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3 pt-1">
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if lead else 'Create Contact' }}</button>
         <a href="/leads" class="btn btn-secondary">Cancel</a>
-        {% if lead and lead.status.value != 'converted' %}
-          <form method="post" action="/leads/{{ lead.id }}/delete" class="ml-auto" onsubmit="return confirm('Delete this lead?')">
-            <button type="submit" class="btn btn-danger">Delete</button>
-          </form>
+        {% if lead %}
+          <div class="ml-auto flex gap-2">
+            {% if lead.status.value != 'converted' %}
+              <form method="post" action="/leads/{{ lead.id }}/convert">
+                <button type="submit" class="btn btn-secondary text-brand-600" onclick="return confirm('Convert this contact to a company?')">Convert to Company</button>
+              </form>
+            {% endif %}
+            <form method="post" action="/leads/{{ lead.id }}/delete" onsubmit="return confirm('Delete this contact?')">
+              <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+          </div>
         {% endif %}
       </div>
     </form>

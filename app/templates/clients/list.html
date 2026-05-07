@@ -58,36 +58,33 @@
         {% for client in clients %}
           <tr>
             <td>
-              <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
                   style="background:hsl({{ (client.name | length * 53) % 360 }},50%,50%)">
                   {{ client.name[:2].upper() }}
                 </div>
-                <div>
-                  <a href="/clients/{{ client.id }}" class="font-medium text-slate-900 hover:text-brand-600">{{ client.name }}</a>
-                  {% if client.email %}<p class="text-xs text-slate-400">{{ client.email }}</p>{% endif %}
-                </div>
+                <a href="/clients/{{ client.id }}" class="font-medium text-slate-900 hover:text-brand-600 cell-trunc" title="{{ client.name }}">{{ client.name }}</a>
               </div>
             </td>
             <td><span class="badge bg-slate-100 text-slate-600">{{ client.type.value | humanize }}</span></td>
-            <td class="text-slate-500 text-sm">{{ client.industry or '—' }}</td>
-            <td class="text-slate-500 text-sm">
+            <td class="text-slate-500"><div class="cell-trunc-sm" title="{{ client.industry or '' }}">{{ client.industry or '—' }}</div></td>
+            <td class="text-slate-500">
               {% set parts = [] %}
               {% if client.hq_city %}{% set _ = parts.append(client.hq_city) %}{% endif %}
               {% if client.hq_state %}{% set _ = parts.append(client.hq_state) %}{% endif %}
               {% if client.hq_country %}{% set _ = parts.append(client.hq_country) %}{% endif %}
-              {{ parts | join(', ') or '—' }}
+              <div class="cell-trunc-sm" title="{{ parts | join(', ') }}">{{ parts | join(', ') or '—' }}</div>
             </td>
-            <td class="text-sm">
+            <td>
               {% if client.website %}
-                <a href="{{ client.website }}" target="_blank" class="text-brand-600 hover:underline truncate max-w-[140px] block">
-                  {{ client.website | replace('https://', '') | replace('http://', '') | truncate(30) }}
+                <a href="{{ client.website }}" target="_blank" class="text-brand-600 hover:underline cell-trunc-sm block" title="{{ client.website }}">
+                  {{ client.website | replace('https://', '') | replace('http://', '') }}
                 </a>
-              {% else %}—{% endif %}
+              {% else %}<span class="text-slate-400">—</span>{% endif %}
             </td>
-            <td class="text-slate-500 text-sm">{{ client.contacts | length }}</td>
-            <td class="text-slate-500 text-sm">{{ client.deals | length }}</td>
-            <td class="text-slate-500 text-sm">{{ client.owner.full_name if client.owner else '—' }}</td>
+            <td class="text-slate-500 text-center">{{ client.contacts | length }}</td>
+            <td class="text-slate-500 text-center">{{ client.deals | length }}</td>
+            <td class="text-slate-500"><div class="cell-trunc-sm">{{ client.owner.full_name if client.owner else '—' }}</div></td>
             <td>
               <a href="/clients/{{ client.id }}" class="btn btn-ghost btn-sm">View</a>
             </td>

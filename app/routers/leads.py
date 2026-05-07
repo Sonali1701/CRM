@@ -40,6 +40,17 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
     })
 
 
+@router.post("/delete-all")
+def leads_delete_all(user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Admin-only nuke: delete every contact. Useful after a bad bulk import."""
+    if not user.is_admin:
+        from fastapi import HTTPException
+        raise HTTPException(403, "Admin only")
+    count = db.query(Lead).delete()
+    db.commit()
+    return flash(RedirectResponse("/leads", 303), f"Deleted {count} contacts.", "error")
+
+
 @router.get("/new")
 def lead_new(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
@@ -142,17 +153,6 @@ def lead_delete(lead_id: int, user: User = Depends(require_user), db: Session = 
     db.delete(lead)
     db.commit()
     return flash(RedirectResponse("/leads", 303), "Contact deleted.", "error")
-
-
-@router.post("/delete-all")
-def leads_delete_all(user: User = Depends(require_user), db: Session = Depends(get_db)):
-    """Admin-only nuke: delete every contact. Useful after a bad bulk import."""
-    if not user.is_admin:
-        from fastapi import HTTPException
-        raise HTTPException(403, "Admin only")
-    count = db.query(Lead).delete()
-    db.commit()
-    return flash(RedirectResponse("/leads", 303), f"Deleted {count} contacts.", "error")
 
 
 @router.post("/{lead_id}/assign")

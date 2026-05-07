@@ -5,36 +5,32 @@
         style="background:hsl({{ (lead.first_name | length * 47) % 360 }},55%,55%)">
         {{ lead.first_name[0].upper() }}{{ lead.last_name[0].upper() if lead.last_name else '' }}
       </div>
-      <div>
-        <a href="/leads/{{ lead.id }}" class="font-medium text-slate-900 hover:text-brand-600 text-sm">
-          {{ lead.first_name }}{% if lead.last_name %} {{ lead.last_name }}{% endif %}
-        </a>
-        {% if lead.notes %}<p class="text-xs text-slate-400 truncate max-w-[160px]" title="{{ lead.notes }}">{{ lead.notes[:60] }}{% if lead.notes | length > 60 %}…{% endif %}</p>{% endif %}
-      </div>
+      <a href="/leads/{{ lead.id }}" class="font-medium text-slate-900 hover:text-brand-600 text-sm whitespace-nowrap">
+        {{ lead.first_name }}
+      </a>
     </div>
   </td>
-  <td class="text-slate-600 text-sm">
-    {% if lead.company %}
-      {% set matched = none %}
-      {{ lead.company }}
-    {% else %}—{% endif %}
-  </td>
-  <td class="text-slate-500 text-sm">{{ lead.job_title or '—' }}</td>
-  <td class="text-sm">
+  <td class="text-slate-700 text-sm whitespace-nowrap">{{ lead.last_name or '—' }}</td>
+  <td class="text-slate-600 text-sm whitespace-nowrap">{{ lead.job_title or '—' }}</td>
+  <td class="text-slate-600 text-sm whitespace-nowrap">{{ lead.company or '—' }}</td>
+  <td class="text-sm whitespace-nowrap">
     {% if lead.email %}
       <a href="mailto:{{ lead.email }}" class="text-brand-600 hover:underline">{{ lead.email }}</a>
-    {% else %}—{% endif %}
+    {% else %}<span class="text-slate-400">—</span>{% endif %}
   </td>
-  <td class="text-slate-500 text-sm">
-    {% if lead.mobile %}{{ lead.mobile }}{% endif %}
-    {% if lead.mobile and lead.phone %}<br>{% endif %}
-    {% if lead.phone %}{{ lead.phone }}{% endif %}
-    {% if not lead.mobile and not lead.phone %}—{% endif %}
+  <td class="text-slate-600 text-sm whitespace-nowrap">{{ lead.mobile or '—' }}</td>
+  <td class="text-slate-600 text-sm whitespace-nowrap">{{ lead.phone or '—' }}</td>
+  <td class="text-sm whitespace-nowrap">
+    {% if lead.linkedin_url %}
+      <a href="{{ lead.linkedin_url }}" target="_blank" class="inline-flex items-center gap-1 text-blue-600 hover:underline">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+        Profile
+      </a>
+    {% else %}<span class="text-slate-400">—</span>{% endif %}
   </td>
-  <td class="text-slate-500 text-sm">
-    {% set loc = lead.location %}
-    {{ loc if loc else '—' }}
-  </td>
+  <td class="text-slate-600 text-sm whitespace-nowrap">{{ lead.country or '—' }}</td>
+  <td class="text-slate-600 text-sm whitespace-nowrap">{{ lead.state or '—' }}</td>
+  <td class="text-slate-600 text-sm whitespace-nowrap">{{ lead.city or '—' }}</td>
   <td><span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span></td>
   <td>
     {% if user.is_manager %}
@@ -51,18 +47,18 @@
         </select>
       </form>
     {% else %}
-      <span class="text-sm text-slate-600">{{ lead.owner.full_name if lead.owner else '—' }}</span>
+      <span class="text-sm text-slate-600 whitespace-nowrap">{{ lead.owner.full_name if lead.owner else '—' }}</span>
     {% endif %}
   </td>
   <td class="text-slate-400 text-xs whitespace-nowrap">{{ lead.created_at | date }}</td>
+  <td class="text-slate-500 text-xs max-w-[200px]">
+    {% if lead.notes %}
+      <span class="truncate block" title="{{ lead.notes }}">{{ lead.notes[:80] }}{% if lead.notes | length > 80 %}…{% endif %}</span>
+    {% else %}<span class="text-slate-400">—</span>{% endif %}
+  </td>
   <td>
     <div class="flex items-center gap-1">
       <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm">Edit</a>
-      {% if lead.linkedin_url %}
-        <a href="{{ lead.linkedin_url }}" target="_blank" class="btn btn-ghost btn-sm text-blue-500" title="LinkedIn">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-        </a>
-      {% endif %}
       {% if lead.status.value != 'converted' %}
         <form method="post" action="/leads/{{ lead.id }}/convert">
           <button class="btn btn-ghost btn-sm text-brand-600">Convert</button>

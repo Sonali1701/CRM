@@ -8,6 +8,14 @@
     <p class="text-sm text-slate-500 mt-0.5">{{ leads | length }} contact{% if leads | length != 1 %}s{% endif %}{% if filter_status or search %} (filtered){% endif %}</p>
   </div>
   <div class="flex gap-2">
+    {% if user.is_admin and leads %}
+    <form method="post" action="/leads/delete-all" onsubmit="return confirm('This will permanently delete ALL {{ leads | length }} contacts. Are you absolutely sure?');">
+      <button type="submit" class="btn btn-danger">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Delete All
+      </button>
+    </form>
+    {% endif %}
     <a href="/import/leads/import" class="btn btn-secondary">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       Import

@@ -155,14 +155,27 @@ def _parse_excel(raw: bytes) -> tuple[list[str], list[dict]] | str:
     if not rows:
         return "Excel file is empty."
 
-    headers = [str(c).strip() if c is not None else "" for c in rows[0]]
-    headers = [h for h in headers if h]  # drop trailing empty cols
+    # Track valid header positions — empty cells anywhere in the header row
+    # must be skipped on both header AND data rows or columns will shift.
+    raw_headers = [str(c).strip() if c is not None else "" for c in rows[0]]
+    valid_indices = [i for i, h in enumerate(raw_headers) if h]
+    headers: list[str] = []
+    seen: dict[str, int] = {}
+    for i in valid_indices:
+        h = raw_headers[i]
+        if h in seen:
+            seen[h] += 1
+            h = f"{h} ({seen[h]})"
+        else:
+            seen[h] = 1
+        headers.append(h)
     if not headers:
         return "First row has no headers."
 
     data_rows = []
     for row in rows[1:]:
-        values = [str(c).strip() if c is not None else "" for c in row]
+        values_full = [str(c).strip() if c is not None else "" for c in row]
+        values = [values_full[i] if i < len(values_full) else "" for i in valid_indices]
         if not any(values):
             continue
         data_rows.append(dict(zip(headers, values)))

@@ -36,6 +36,15 @@ def clients_list(request: Request, search: str = "", type_: str = "", user: User
     })
 
 
+@router.get("/enrich")
+async def client_enrich(url: str = "", user: User = Depends(require_user)):
+    """Fetch company details from a website URL — called via fetch() from the form."""
+    if not url.strip():
+        return JSONResponse({"error": "No URL provided"}, status_code=400)
+    data = await enrich(url)
+    return JSONResponse(data)
+
+
 @router.get("/new")
 def client_new(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
@@ -146,14 +155,6 @@ def client_delete(client_id: int, user: User = Depends(require_user), db: Sessio
     db.delete(client)
     db.commit()
     return flash(RedirectResponse("/clients", 303), "Company deleted.", "error")
-
-
-@router.get("/enrich")
-async def client_enrich(url: str, user: User = Depends(require_user)):
-    if not url:
-        return JSONResponse({"error": "No URL provided"}, status_code=400)
-    data = await enrich(url)
-    return JSONResponse(data)
 
 
 def _get_client(client_id: int, user: User, db: Session) -> Client:

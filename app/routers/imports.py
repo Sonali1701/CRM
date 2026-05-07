@@ -351,35 +351,46 @@ def _get_val(row: dict, col: str) -> str:
     return row.get(col, "").strip() if col else ""
 
 
+def _trunc(value: str, maxlen: int) -> str | None:
+    """Trim a value and truncate to maxlen — never let user input blow up an INSERT."""
+    if not value:
+        return None
+    v = value.strip()
+    return v[:maxlen] if v else None
+
+
 def _import_leads(rows: list[dict], mapping: dict, user: User, db: Session) -> dict:
     imported, skipped = [], []
     first_col = mapping.get("first_name", "")
 
     for i, row in enumerate(rows, start=2):
-        first_name = _get_val(row, first_col)
-        if not first_name:
+        first_name_raw = _get_val(row, first_col)
+        if not first_name_raw:
             skipped.append({"row": i, "data": row, "reason": "First name is empty"})
             continue
         lead = Lead(
-            first_name=first_name,
-            last_name=_get_val(row, mapping.get("last_name", "")) or None,
-            job_title=_get_val(row, mapping.get("job_title", "")) or None,
-            company=_get_val(row, mapping.get("company", "")) or None,
-            email=_get_val(row, mapping.get("email", "")) or None,
-            mobile=_get_val(row, mapping.get("mobile", "")) or None,
-            phone=_get_val(row, mapping.get("phone", "")) or None,
-            linkedin_url=_get_val(row, mapping.get("linkedin_url", "")) or None,
-            city=_get_val(row, mapping.get("city", "")) or None,
-            state=_get_val(row, mapping.get("state", "")) or None,
-            country=_get_val(row, mapping.get("country", "")) or None,
-            source=_get_val(row, mapping.get("source", "")) or None,
-            notes=_get_val(row, mapping.get("notes", "")) or None,
+            first_name=_trunc(first_name_raw, 100),
+            last_name=_trunc(_get_val(row, mapping.get("last_name", "")), 100),
+            job_title=_trunc(_get_val(row, mapping.get("job_title", "")), 255),
+            company=_trunc(_get_val(row, mapping.get("company", "")), 255),
+            email=_trunc(_get_val(row, mapping.get("email", "")), 255),
+            mobile=_trunc(_get_val(row, mapping.get("mobile", "")), 50),
+            phone=_trunc(_get_val(row, mapping.get("phone", "")), 50),
+            linkedin_url=_trunc(_get_val(row, mapping.get("linkedin_url", "")), 500),
+            city=_trunc(_get_val(row, mapping.get("city", "")), 100),
+            state=_trunc(_get_val(row, mapping.get("state", "")), 100),
+            country=_trunc(_get_val(row, mapping.get("country", "")), 100),
+            source=_trunc(_get_val(row, mapping.get("source", "")), 100),
+            notes=_get_val(row, mapping.get("notes", "")) or None,  # TEXT column, no limit
             status=LeadStatus.NEW,
             owner_id=user.id,
         )
         db.add(lead)
-        company = _get_val(row, mapping.get("company", ""))
-        imported.append({"row": i, "name": first_name, "company": company})
+        imported.append({
+            "row": i,
+            "name": lead.first_name,
+            "company": lead.company or "",
+        })
 
     db.commit()
     return {"imported": imported, "skipped": skipped}
@@ -407,15 +418,15 @@ def _import_clients(rows: list[dict], mapping: dict, user: User, db: Session) ->
             continue
 
         client = Client(
-            name=name,
+            name=_trunc(name, 255),
             type=ClientType(type_raw),
-            industry=_get_val(row, mapping.get("industry", "")) or None,
-            website=_get_val(row, mapping.get("website", "")) or None,
-            notes=_get_val(row, mapping.get("notes", "")) or None,
+            industry=_trunc(_get_val(row, mapping.get("industry", "")), 100),
+            website=_trunc(_get_val(row, mapping.get("website", "")), 255),
+            notes=_get_val(row, mapping.get("notes", "")) or None,  # TEXT column
             owner_id=user.id,
         )
         db.add(client)
-        imported.append({"row": i, "name": name, "type": type_raw})
+        imported.append({"row": i, "name": client.name, "type": type_raw})
 
     db.commit()
     return {"imported": imported, "skipped": skipped}

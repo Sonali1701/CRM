@@ -37,8 +37,9 @@
 </div>
 
 <!-- Table -->
-<div class="card overflow-x-auto">
+<div class="card">
   {% if clients %}
+    <div class="table-scroll">
     <table class="crm">
       <thead>
         <tr>
@@ -94,6 +95,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
   {% else %}
     <div class="py-16 text-center">
       <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>

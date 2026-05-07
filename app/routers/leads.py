@@ -58,9 +58,10 @@ def lead_create(
     linkedin_url: str = Form(""),
     city: str = Form(""), state: str = Form(""), country: str = Form(""),
     source: str = Form(""), notes: str = Form(""),
-    owner_id: int = Form(None),
+    owner_id: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
+    owner = int(owner_id) if owner_id.strip().isdigit() else None
     lead = Lead(
         first_name=first_name, last_name=last_name or None,
         job_title=job_title or None, company=company or None,
@@ -68,7 +69,7 @@ def lead_create(
         linkedin_url=linkedin_url or None,
         city=city or None, state=state or None, country=country or None,
         source=source or None, notes=notes or None,
-        owner_id=owner_id if user.is_manager else user.id,
+        owner_id=owner if user.is_manager else user.id,
         status=LeadStatus.NEW,
     )
     db.add(lead)
@@ -96,7 +97,7 @@ def lead_update(
     linkedin_url: str = Form(""),
     city: str = Form(""), state: str = Form(""), country: str = Form(""),
     source: str = Form(""), notes: str = Form(""),
-    status: str = Form(...), owner_id: int = Form(None),
+    status: str = Form(...), owner_id: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     lead = _get_lead(lead_id, user, db)
@@ -114,8 +115,8 @@ def lead_update(
     lead.source = source or None
     lead.notes = notes or None
     lead.status = LeadStatus(status)
-    if user.is_manager and owner_id:
-        lead.owner_id = owner_id
+    if user.is_manager:
+        lead.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
     db.commit()
     return flash(RedirectResponse("/leads", 303), "Contact updated.")
 
@@ -146,14 +147,14 @@ def lead_delete(lead_id: int, user: User = Depends(require_user), db: Session = 
 @router.post("/{lead_id}/assign")
 async def lead_assign(
     lead_id: int, request: Request,
-    owner_id: int = Form(None),
+    owner_id: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     if not user.is_manager:
         from fastapi import HTTPException
         raise HTTPException(403)
     lead = _get_lead_any(lead_id, db)
-    lead.owner_id = owner_id or None
+    lead.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
     db.commit()
     reps = db.query(User).filter(User.is_active == True).all()
     return templates.TemplateResponse(request, "leads/_row.html", {

@@ -57,15 +57,18 @@ def client_new(request: Request, user: User = Depends(require_user), db: Session
 def client_create(
     request: Request,
     name: str = Form(...), type_: str = Form("direct"), website: str = Form(""),
-    industry: str = Form(""), notes: str = Form(""), owner_id: int = Form(None),
+    industry: str = Form(""), description: str = Form(""), notes: str = Form(""),
+    owner_id: str = Form(""),
     hq_city: str = Form(""), hq_state: str = Form(""), hq_country: str = Form(""),
     phone: str = Form(""), email: str = Form(""), linkedin_url: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
+    owner = int(owner_id) if owner_id.strip().isdigit() else None
     client = Client(
         name=name, type=ClientType(type_), website=website or None,
-        industry=industry or None, notes=notes or None,
-        owner_id=owner_id if user.is_manager else user.id,
+        industry=industry or None, description=description or None,
+        notes=notes or None,
+        owner_id=owner if user.is_manager else user.id,
         hq_city=hq_city or None, hq_state=hq_state or None, hq_country=hq_country or None,
         phone=phone or None, email=email or None, linkedin_url=linkedin_url or None,
     )
@@ -96,7 +99,8 @@ def client_detail(client_id: int, request: Request, user: User = Depends(require
 def client_update(
     client_id: int,
     name: str = Form(...), type_: str = Form("direct"), website: str = Form(""),
-    industry: str = Form(""), notes: str = Form(""), owner_id: int = Form(None),
+    industry: str = Form(""), description: str = Form(""), notes: str = Form(""),
+    owner_id: str = Form(""),
     hq_city: str = Form(""), hq_state: str = Form(""), hq_country: str = Form(""),
     phone: str = Form(""), email: str = Form(""), linkedin_url: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
@@ -106,6 +110,7 @@ def client_update(
     client.type = ClientType(type_)
     client.website = website or None
     client.industry = industry or None
+    client.description = description or None
     client.notes = notes or None
     client.hq_city = hq_city or None
     client.hq_state = hq_state or None
@@ -113,8 +118,8 @@ def client_update(
     client.phone = phone or None
     client.email = email or None
     client.linkedin_url = linkedin_url or None
-    if user.is_manager and owner_id:
-        client.owner_id = owner_id
+    if user.is_manager:
+        client.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
     db.commit()
     return flash(RedirectResponse(f"/clients/{client_id}", 303), "Company updated.")
 

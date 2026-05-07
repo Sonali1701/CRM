@@ -104,8 +104,13 @@
         {% endif %}
 
         <div>
-          <label class="block text-sm font-medium mb-1">Notes</label>
-          <textarea name="notes" rows="3" class="textarea">{{ client.notes or '' }}</textarea>
+          <label class="block text-sm font-medium mb-1">Description</label>
+          <textarea name="description" rows="3" class="textarea" placeholder="What this company does">{{ client.description or '' }}</textarea>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Internal Notes</label>
+          <textarea name="notes" rows="2" class="textarea" placeholder="Private notes">{{ client.notes or '' }}</textarea>
         </div>
         <div class="flex gap-3">
           <button type="submit" class="btn btn-primary">Save Changes</button>

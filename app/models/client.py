@@ -22,6 +22,7 @@ class Client(Base):
     type: Mapped[ClientType] = mapped_column(Enum(ClientType), default=ClientType.DIRECT)
     website: Mapped[str | None] = mapped_column(String(255), nullable=True)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # HQ location

@@ -19,7 +19,7 @@
           this.enriched = data;
           if (data.name)     document.getElementById('f-name').value     = data.name;
           if (data.industry) document.getElementById('f-industry').value = data.industry;
-          if (data.description) document.getElementById('f-notes').value = data.description;
+          if (data.description) document.getElementById('f-description').value = data.description;
           if (data.social && data.social.linkedin) document.getElementById('f-linkedin').value = data.social.linkedin;
         }
       } catch(e) { this.error = 'Could not reach the server. Try again.'; }
@@ -155,8 +155,13 @@
       {% endif %}
 
       <div>
-        <label class="block text-sm font-medium mb-1">Notes / About</label>
-        <textarea id="f-notes" name="notes" rows="3" class="textarea" placeholder="About this company…"></textarea>
+        <label class="block text-sm font-medium mb-1">Description</label>
+        <textarea id="f-description" name="description" rows="3" class="textarea" placeholder="What this company does — auto-filled from website if available"></textarea>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Internal Notes</label>
+        <textarea name="notes" rows="2" class="textarea" placeholder="Private notes about this company"></textarea>
       </div>
 
       <div class="flex gap-3 pt-2">

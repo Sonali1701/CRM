@@ -53,15 +53,17 @@ def deal_new(request: Request, client_id: int = None, user: User = Depends(requi
 @router.post("/new")
 def deal_create(
     request: Request,
-    title: str = Form(...), client_id: int = Form(None), owner_id: int = Form(None),
+    title: str = Form(...), client_id: str = Form(""), owner_id: str = Form(""),
     value: float = Form(0), stage: str = Form("lead_generated"),
     expected_close_date: str = Form(""), probability: int = Form(0),
     notes: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
+    cid = int(client_id) if client_id.strip().isdigit() else None
+    oid = int(owner_id) if owner_id.strip().isdigit() else None
     deal = Deal(
-        title=title, client_id=client_id or None,
-        owner_id=owner_id if user.is_manager else user.id,
+        title=title, client_id=cid,
+        owner_id=oid if user.is_manager else user.id,
         value=value, stage=DealStage(stage),
         expected_close_date=datetime.strptime(expected_close_date, "%Y-%m-%d").date() if expected_close_date else None,
         probability=probability, notes=notes or None,
@@ -88,19 +90,20 @@ def deal_detail(deal_id: int, request: Request, user: User = Depends(require_use
 @router.post("/{deal_id}")
 def deal_update(
     deal_id: int,
-    title: str = Form(...), client_id: int = Form(None), owner_id: int = Form(None),
+    title: str = Form(...), client_id: str = Form(""), owner_id: str = Form(""),
     value: float = Form(0), stage: str = Form(...),
     expected_close_date: str = Form(""), probability: int = Form(0),
     notes: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     deal = _get_deal(deal_id, user, db)
-    deal.title = title; deal.client_id = client_id or None
+    deal.title = title
+    deal.client_id = int(client_id) if client_id.strip().isdigit() else None
     deal.value = value; deal.stage = DealStage(stage)
     deal.expected_close_date = datetime.strptime(expected_close_date, "%Y-%m-%d").date() if expected_close_date else None
     deal.probability = probability; deal.notes = notes or None
-    if user.is_manager and owner_id:
-        deal.owner_id = owner_id
+    if user.is_manager:
+        deal.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
     db.commit()
     return flash(RedirectResponse(f"/deals/{deal_id}", 303), "Deal updated.")
 

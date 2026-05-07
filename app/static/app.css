@@ -76,9 +76,13 @@ html, body { overflow-x: hidden; max-width: 100vw; }
 .table-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* Compact table — for wide multi-column tables (Contacts, Companies) */
+table.crm.crm-compact { table-layout: fixed; }
 table.crm.crm-compact thead th { padding: .5rem .625rem; font-size: .65rem; }
 table.crm.crm-compact tbody td { padding: .5rem .625rem; font-size: .8125rem; }
 table.crm.crm-compact .avatar { width: 1.5rem; height: 1.5rem; font-size: .65rem; }
+table.crm.crm-compact td > div.truncate,
+table.crm.crm-compact td > a.truncate,
+table.crm.crm-compact td > span.truncate { max-width: 100%; }
 .cell-trunc { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-trunc-sm { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

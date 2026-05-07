@@ -1,35 +1,28 @@
 <tr>
   <td>
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 min-w-0">
       <div class="avatar text-white flex-shrink-0"
         style="background:hsl({{ (lead.first_name | length * 47) % 360 }},55%,55%)">
         {{ lead.first_name[0].upper() }}{{ lead.last_name[0].upper() if lead.last_name else '' }}
       </div>
-      <a href="/leads/{{ lead.id }}" class="font-medium text-slate-900 hover:text-brand-600 cell-trunc"
+      <a href="/leads/{{ lead.id }}" class="font-medium text-slate-900 hover:text-brand-600 truncate block min-w-0"
          title="{{ lead.first_name }}{% if lead.last_name %} {{ lead.last_name }}{% endif %}">
         {{ lead.first_name }}{% if lead.last_name %} {{ lead.last_name }}{% endif %}
       </a>
     </div>
   </td>
-  <td class="text-slate-600"><div class="cell-trunc-sm" title="{{ lead.job_title or '' }}">{{ lead.job_title or '—' }}</div></td>
-  <td class="text-slate-600"><div class="cell-trunc-sm" title="{{ lead.company or '' }}">{{ lead.company or '—' }}</div></td>
-  <td>
-    {% if lead.email %}
-      <a href="mailto:{{ lead.email }}" class="text-brand-600 hover:underline cell-trunc block" title="{{ lead.email }}">{{ lead.email }}</a>
-    {% else %}<span class="text-slate-400">—</span>{% endif %}
-  </td>
-  <td class="text-slate-600 whitespace-nowrap">
-    {{ lead.mobile or lead.phone or '—' }}
+  <td class="text-slate-600">
+    <div class="truncate" title="{{ lead.job_title or '' }}">{{ lead.job_title or '—' }}</div>
   </td>
   <td class="text-slate-600">
-    <div class="cell-trunc-sm" title="{{ lead.location }}">{{ lead.location or '—' }}</div>
+    <div class="truncate" title="{{ lead.company or '' }}">{{ lead.company or '—' }}</div>
   </td>
   <td><span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span></td>
   <td>
     {% if user.is_manager %}
       <form method="post" action="/leads/{{ lead.id }}/assign"
             hx-post="/leads/{{ lead.id }}/assign" hx-target="closest tr" hx-swap="outerHTML">
-        <select name="owner_id" class="select text-xs py-1 px-1.5 w-28"
+        <select name="owner_id" class="select text-xs py-1 px-1.5 w-full"
                 onchange="this.form.requestSubmit()">
           <option value="">Unassigned</option>
           {% for rep in reps %}
@@ -40,22 +33,10 @@
         </select>
       </form>
     {% else %}
-      <span class="text-slate-600 whitespace-nowrap">{{ lead.owner.full_name if lead.owner else '—' }}</span>
+      <span class="text-slate-600 truncate block">{{ lead.owner.full_name if lead.owner else '—' }}</span>
     {% endif %}
   </td>
-  <td class="text-slate-400 text-xs whitespace-nowrap">{{ lead.created_at | date }}</td>
   <td>
-    <div class="flex items-center gap-0.5">
-      <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm" title="View &amp; edit full details">View</a>
-      {% if lead.status.value != 'converted' %}
-        <form method="post" action="/leads/{{ lead.id }}/convert">
-          <button class="btn btn-ghost btn-sm text-brand-600">Convert</button>
-        </form>
-      {% else %}
-        {% if lead.converted_client_id %}
-          <a href="/clients/{{ lead.converted_client_id }}" class="btn btn-ghost btn-sm text-violet-600">Company ↗</a>
-        {% endif %}
-      {% endif %}
-    </div>
+    <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm" title="View &amp; edit full details">View</a>
   </td>
 </tr>

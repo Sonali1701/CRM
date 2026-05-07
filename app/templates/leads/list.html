@@ -38,22 +38,17 @@
 </div>
 
 <!-- Table -->
-<div class="card">
+<div class="card overflow-hidden">
   {% if leads %}
-  <div class="table-scroll">
-  <table class="crm crm-compact">
+  <table class="crm crm-compact w-full">
     <thead>
       <tr>
-        <th>Name</th>
-        <th>Job Title</th>
-        <th>Company</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>Location</th>
-        <th>Status</th>
-        <th>Owner</th>
-        <th>Created</th>
-        <th></th>
+        <th class="w-[26%]">Name</th>
+        <th class="w-[18%]">Title</th>
+        <th class="w-[18%]">Company</th>
+        <th class="w-[10%]">Status</th>
+        <th class="w-[18%]">Owner</th>
+        <th class="w-[10%]"></th>
       </tr>
     </thead>
     <tbody id="contacts-tbody">
@@ -62,7 +57,6 @@
       {% endfor %}
     </tbody>
   </table>
-  </div>
   {% else %}
   <div class="py-16 text-center">
     <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>

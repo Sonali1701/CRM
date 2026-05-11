@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Mail – Radixsol CRM{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-slate-900">Mail</h1>
+    {% if account %}
+      <p class="text-sm text-slate-500 mt-0.5">{{ account.mailbox }}</p>
+    {% endif %}
+  </div>
+  {% if account %}
+  <div class="flex gap-2">
+    <form method="post" action="/mail/sync">
+      <input type="hidden" name="redirect_to" value="/mail" />
+      <button type="submit" class="btn btn-secondary">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Sync
+      </button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{% if not account %}
+<div class="card p-12 text-center">
+  <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+  <p class="text-slate-500 font-medium mb-1">No mailbox connected</p>
+  <p class="text-slate-400 text-sm mb-4">Connect your Outlook account to sync emails with your CRM contacts, companies, and deals.</p>
+  <a href="/mail/connect" class="btn btn-primary">Connect Outlook</a>
+</div>
+{% else %}
+
+<!-- Folder tabs -->
+<div class="flex gap-1 mb-4">
+  <a href="/mail?folder=inbox"
+     class="px-4 py-2 text-sm rounded-lg font-medium transition-colors
+       {% if folder == 'inbox' %}bg-brand-600 text-white{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+    Inbox
+  </a>
+  <a href="/mail?folder=sentItems"
+     class="px-4 py-2 text-sm rounded-lg font-medium transition-colors
+       {% if folder == 'sentItems' %}bg-brand-600 text-white{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+    Sent
+  </a>
+</div>
+
+<div class="card overflow-hidden">
+  {% if messages %}
+  <table class="crm crm-compact w-full">
+    <thead>
+      <tr>
+        <th class="w-[22%]">{% if folder == 'sentItems' %}To{% else %}From{% endif %}</th>
+        <th class="w-[40%]">Subject</th>
+        <th class="w-[16%]">Linked To</th>
+        <th class="w-[12%]">Date</th>
+        <th class="w-[10%]"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for msg in messages %}
+      <tr>
+        <td class="truncate max-w-0">
+          <span class="block truncate text-slate-800">
+            {% if folder == 'sentItems' %}
+              {{ msg.to_emails | replace(';', ', ') or '—' }}
+            {% else %}
+              {{ msg.from_email or '—' }}
+            {% endif %}
+          </span>
+        </td>
+        <td class="truncate max-w-0">
+          <span class="block truncate font-medium text-slate-800">{{ msg.subject or '(No subject)' }}</span>
+          {% if msg.body_preview %}
+            <span class="block truncate text-slate-400 text-xs mt-0.5">{{ msg.body_preview[:80] }}</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-500">
+          {% if msg.client_id %}
+            <a href="/clients/{{ msg.client_id }}" class="text-brand-600 hover:underline">Company</a>
+          {% elif msg.lead_id %}
+            <a href="/leads/{{ msg.lead_id }}" class="text-brand-600 hover:underline">Contact</a>
+          {% else %}
+            <span class="text-slate-300">—</span>
+          {% endif %}
+          {% if msg.deal_id %}
+            · <a href="/deals/{{ msg.deal_id }}" class="text-brand-600 hover:underline">Deal</a>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-500 whitespace-nowrap">
+          {{ (msg.received_at or msg.sent_at) | date if (msg.received_at or msg.sent_at) else '—' }}
+        </td>
+        <td>
+          {% if not msg.client_id and not msg.lead_id %}
+            <span class="badge bg-amber-50 text-amber-600 border-amber-200 text-xs">Unlinked</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="py-16 text-center">
+    <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    <p class="text-slate-500 font-medium mb-1">No messages yet</p>
+    <p class="text-slate-400 text-sm mb-4">Click Sync to fetch your latest emails.</p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

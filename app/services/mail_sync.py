@@ -31,17 +31,26 @@ def _clean_emails(value: list[dict[str, Any]]) -> str:
     return ";".join(e.get("emailAddress", {}).get("address", "") for e in value)
 
 
+def _trim(value: Any, maxlen: int) -> str | None:
+    if value is None:
+        return None
+    s = str(value)
+    return s[:maxlen] if len(s) > maxlen else s
+
+
 def _map_message_to_db(msg: dict[str, Any], mail_account_id: int, folder: str) -> dict[str, Any]:
+    # Trim varchar fields defensively so a single overlong header can't
+    # tank an entire sync batch on Postgres.
     payload = {
         "mail_account_id": mail_account_id,
         "folder": folder,
-        "provider_message_id": msg.get("id"),
-        "internet_message_id": msg.get("internetMessageId"),
-        "conversation_id": msg.get("conversationId"),
-        "subject": msg.get("subject"),
+        "provider_message_id": _trim(msg.get("id"), 1000),
+        "internet_message_id": _trim(msg.get("internetMessageId"), 1000),
+        "conversation_id": _trim(msg.get("conversationId"), 500),
+        "subject": _trim(msg.get("subject"), 500),
         "body_preview": msg.get("bodyPreview"),
         "body_content": msg.get("body", {}).get("content"),
-        "from_email": msg.get("from", {}).get("emailAddress", {}).get("address"),
+        "from_email": _trim(msg.get("from", {}).get("emailAddress", {}).get("address"), 320),
         "to_emails": _clean_emails(msg.get("toRecipients", [])),
         "cc_emails": _clean_emails(msg.get("ccRecipients", [])),
         "is_inbound": folder != "sentItems",

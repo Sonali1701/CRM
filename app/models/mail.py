@@ -45,15 +45,15 @@ class EmailMessage(Base):
 
     folder: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)  # inbox/sent
 
-    provider_message_id: Mapped[str] = mapped_column(String(255), index=True)
-    internet_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    conversation_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    provider_message_id: Mapped[str] = mapped_column(String(1000), index=True)
+    internet_message_id: Mapped[str | None] = mapped_column(String(1000), nullable=True, index=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
 
-    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
     body_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
     body_content: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    from_email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    from_email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
     to_emails: Mapped[str | None] = mapped_column(Text, nullable=True)
     cc_emails: Mapped[str | None] = mapped_column(Text, nullable=True)
 

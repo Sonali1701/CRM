@@ -20,7 +20,7 @@ class Activity(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     type: Mapped[ActivityType] = mapped_column(Enum(ActivityType), default=ActivityType.NOTE)
-    subject: Mapped[str] = mapped_column(String(255))
+    subject: Mapped[str] = mapped_column(String(500))
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     deal_id: Mapped[int | None] = mapped_column(ForeignKey("deals.id"), nullable=True, index=True)
@@ -39,4 +39,6 @@ class Activity(Base):
     )
 
     deal = relationship("Deal", back_populates="activities")
+    lead = relationship("Lead", foreign_keys=[lead_id])
+    client = relationship("Client", foreign_keys=[client_id])
     created_by = relationship("User", back_populates="activities", foreign_keys=[created_by_id])

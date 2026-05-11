@@ -1,75 +1,126 @@
 {% extends "base.html" %}
 {% block title %}Activities – Radixsol CRM{% endblock %}
 {% block content %}
-<div class="mb-4 flex items-center justify-between">
-  <h1 class="text-xl font-semibold">Activities</h1>
+
+{% macro activity_icon(t) -%}
+  {% if t == 'email' %}
+    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+      <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    </div>
+  {% elif t == 'call' %}
+    <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+      <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 12 19.79 19.79 0 0 1 1.15 3.18 2 2 0 0 1 3.12 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.09a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    </div>
+  {% elif t == 'meeting' %}
+    <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+      <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </div>
+  {% elif t == 'task' %}
+    <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+      <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    </div>
+  {% else %}
+    <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+      <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </div>
+  {% endif %}
+{%- endmacro %}
+
+{% macro activity_row(act, show_complete=False) -%}
+  <li class="flex gap-3 py-3 border-b border-slate-100 last:border-0">
+    {{ activity_icon(act.type.value) }}
+    <div class="flex-1 min-w-0">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="font-medium text-sm text-slate-900 truncate" title="{{ act.subject }}">{{ act.subject }}</p>
+          {% if act.body %}<p class="text-xs text-slate-500 mt-0.5 line-clamp-2">{{ act.body[:160] }}{% if act.body|length > 160 %}…{% endif %}</p>{% endif %}
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1.5">
+            {% if act.type.value == 'email' and act.lead %}
+              <span class="inline-flex items-center gap-1">
+                <span class="text-slate-400">To:</span>
+                <a href="/leads/{{ act.lead.id }}" class="hover:text-brand-600">{{ act.lead.name }}</a>
+                {% if act.lead.email %}<span class="text-slate-400">&lt;{{ act.lead.email }}&gt;</span>{% endif %}
+              </span>
+            {% elif act.lead %}
+              <span class="inline-flex items-center gap-1">
+                <span class="text-slate-400">Contact:</span>
+                <a href="/leads/{{ act.lead.id }}" class="hover:text-brand-600">{{ act.lead.name }}</a>
+              </span>
+            {% endif %}
+            {% if act.created_by %}
+              <span class="inline-flex items-center gap-1">
+                <span class="text-slate-400">By:</span>
+                <span>{{ act.created_by.full_name }}</span>
+              </span>
+            {% endif %}
+            {% if act.client %}
+              <a href="/clients/{{ act.client.id }}" class="hover:text-brand-600">{{ act.client.name }}</a>
+            {% endif %}
+            {% if act.deal %}
+              <a href="/deals/{{ act.deal.id }}" class="text-brand-600 hover:underline">{{ act.deal.title }}</a>
+            {% endif %}
+          </div>
+        </div>
+        <div class="flex-shrink-0 text-right">
+          <p class="text-xs text-slate-400 whitespace-nowrap">
+            {% if act.completed_at %}{{ act.completed_at | date }}
+            {% elif act.due_at %}Due {{ act.due_at | date }}
+            {% else %}{{ act.created_at | date }}{% endif %}
+          </p>
+          <div class="mt-1 flex gap-1 justify-end">
+            {% if show_complete and not act.completed %}
+              <form method="post" action="/activities/{{ act.id }}/complete">
+                <input type="hidden" name="redirect_to" value="/activities" />
+                <button class="text-xs text-green-600 hover:underline">Done</button>
+              </form>
+            {% endif %}
+            <form method="post" action="/activities/{{ act.id }}/delete">
+              <input type="hidden" name="redirect_to" value="/activities" />
+              <button class="text-xs text-slate-300 hover:text-red-500" title="Delete">✕</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </li>
+{%- endmacro %}
+
+<div class="mb-5 flex items-center justify-between">
+  <div>
+    <h1 class="text-xl font-semibold">Activities</h1>
+    <p class="text-sm text-slate-500 mt-0.5">Calls, emails, meetings and tasks across your CRM</p>
+  </div>
 </div>
 
 {% if overdue %}
-  <div class="card p-4 mb-4 border-l-4 border-red-400">
-    <h2 class="font-medium text-sm text-red-600 mb-3">Overdue ({{ overdue | length }})</h2>
-    <ul class="space-y-2">
-      {% for act in overdue %}
-        <li class="flex items-center gap-3 text-sm">
-          <span class="badge bg-red-100 text-red-700">{{ act.type.value | humanize }}</span>
-          <span class="flex-1 font-medium">{{ act.subject }}</span>
-          <span class="text-xs text-slate-400">{{ act.due_at | date }}</span>
-          {% if act.deal_id %}<a href="/deals/{{ act.deal_id }}" class="text-xs text-brand-600 hover:underline">Deal</a>{% endif %}
-          <form method="post" action="/activities/{{ act.id }}/complete">
-            <input type="hidden" name="redirect_to" value="/activities" />
-            <button class="text-xs text-green-600 hover:underline">Done</button>
-          </form>
-        </li>
-      {% endfor %}
+  <div class="card p-4 mb-5 border-l-4 border-red-400">
+    <h2 class="font-medium text-sm text-red-600 mb-1">Overdue ({{ overdue | length }})</h2>
+    <ul>
+      {% for act in overdue %}{{ activity_row(act, show_complete=True) }}{% endfor %}
     </ul>
   </div>
 {% endif %}
 
-<div class="grid md:grid-cols-2 gap-6">
+<div class="grid lg:grid-cols-2 gap-5">
   <div class="card p-4">
-    <h2 class="font-medium text-sm mb-3">Upcoming</h2>
+    <h2 class="font-medium text-sm text-slate-700 mb-1">Upcoming follow-ups</h2>
     {% if upcoming %}
-      <ul class="space-y-2">
-        {% for act in upcoming %}
-          <li class="flex items-center gap-3 text-sm border-b border-slate-100 pb-2">
-            <span class="badge bg-blue-100 text-blue-700">{{ act.type.value | humanize }}</span>
-            <div class="flex-1">
-              <p class="font-medium">{{ act.subject }}</p>
-              {% if act.deal %}<a href="/deals/{{ act.deal_id }}" class="text-xs text-brand-600 hover:underline">{{ act.deal.title }}</a>{% endif %}
-            </div>
-            <span class="text-xs text-slate-400">{{ act.due_at | date }}</span>
-            <form method="post" action="/activities/{{ act.id }}/complete">
-              <input type="hidden" name="redirect_to" value="/activities" />
-              <button class="text-xs text-green-600 hover:underline">Done</button>
-            </form>
-          </li>
-        {% endfor %}
+      <ul>
+        {% for act in upcoming %}{{ activity_row(act, show_complete=True) }}{% endfor %}
       </ul>
     {% else %}
-      <p class="text-sm text-slate-400">No upcoming follow-ups.</p>
+      <p class="text-sm text-slate-400 py-4">No upcoming follow-ups.</p>
     {% endif %}
   </div>
 
   <div class="card p-4">
-    <h2 class="font-medium text-sm mb-3">Recently Completed</h2>
+    <h2 class="font-medium text-sm text-slate-700 mb-1">Recent activity</h2>
     {% if recent %}
-      <ul class="space-y-2">
-        {% for act in recent %}
-          <li class="flex items-center gap-3 text-sm border-b border-slate-100 pb-2">
-            <span class="badge bg-green-100 text-green-700">{{ act.type.value | humanize }}</span>
-            <div class="flex-1">
-              <p class="font-medium line-through text-slate-400">{{ act.subject }}</p>
-              <p class="text-xs text-slate-400">{{ act.completed_at | date }}</p>
-            </div>
-            <form method="post" action="/activities/{{ act.id }}/delete">
-              <input type="hidden" name="redirect_to" value="/activities" />
-              <button class="text-xs text-red-400 hover:text-red-600">✕</button>
-            </form>
-          </li>
-        {% endfor %}
+      <ul>
+        {% for act in recent %}{{ activity_row(act) }}{% endfor %}
       </ul>
     {% else %}
-      <p class="text-sm text-slate-400">No completed activities yet.</p>
+      <p class="text-sm text-slate-400 py-4">No completed activities yet.</p>
     {% endif %}
   </div>
 </div>

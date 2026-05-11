@@ -24,9 +24,9 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""  # defaults to smtp_user if blank
     smtp_use_tls: bool = True  # True = STARTTLS on 587; False = SSL on 465
-    # Auto-create first admin on startup if DB is empty
-    admin_email: str = ""
-    admin_password: str = ""
+    # Default admin: created on startup if missing. Override via env vars.
+    admin_email: str = "admin@radixsol.com"
+    admin_password: str = "admin123"
     admin_name: str = "Admin"
 
 

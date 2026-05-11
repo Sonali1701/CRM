@@ -22,8 +22,9 @@ app.include_router(mail.router, prefix="/mail")
 
 
 @app.on_event("startup")
-def auto_create_admin():
-    """Create the first admin user on startup if ADMIN_EMAIL + ADMIN_PASSWORD are set and DB is empty."""
+def ensure_admin_user():
+    """Make sure the configured admin user exists (and is active + admin role).
+    If they already exist, leave their password alone so any change they made sticks."""
     from app.config import get_settings
     from app.database import SessionLocal
     from app.models import User
@@ -34,20 +35,31 @@ def auto_create_admin():
     if not settings.admin_email or not settings.admin_password:
         return
 
+    email = settings.admin_email.lower().strip()
     db = SessionLocal()
     try:
-        if db.query(User).count() == 0:
+        admin = db.query(User).filter(User.email == email).first()
+        if not admin:
             admin = User(
-                email=settings.admin_email.lower().strip(),
+                email=email,
                 full_name=settings.admin_name,
                 password_hash=hash_password(settings.admin_password),
                 role=UserRole.ADMIN,
             )
             db.add(admin)
             db.commit()
-            print(f"[startup] Admin user created: {settings.admin_email}")
+            print(f"[startup] Admin user created: {email}")
         else:
-            print(f"[startup] Users already exist — skipping auto-create.")
+            changed = False
+            if admin.role != UserRole.ADMIN:
+                admin.role = UserRole.ADMIN
+                changed = True
+            if not admin.is_active:
+                admin.is_active = True
+                changed = True
+            if changed:
+                db.commit()
+                print(f"[startup] Admin user normalized: {email}")
     finally:
         db.close()
 

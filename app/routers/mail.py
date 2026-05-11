@@ -309,7 +309,11 @@ async def mail_bulk_send(
 
     sent = 0
     skipped: list[str] = []
-    for lead in leads:
+    # Microsoft Graph throttles /sendMail to ~30/min per user mailbox. A 1.2s
+    # gap between sends keeps us comfortably under that even if every email
+    # goes from the same mailbox, and only adds a few seconds to typical bulk
+    # sends. Skip the delay after the very last message.
+    for idx, lead in enumerate(leads):
         method, err = await _send_to_lead(
             db, lead, user.id,
             _render_lead_template(subject, lead),
@@ -320,6 +324,8 @@ async def mail_bulk_send(
             sent += 1
         else:
             skipped.append(f"{lead.name} ({err})")
+        if idx < len(leads) - 1:
+            await asyncio.sleep(1.2)
 
     msg = f"Sent {sent} email(s)."
     if skipped:

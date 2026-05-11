@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -12,6 +13,7 @@ from app.database import get_db
 from app.deps import require_user
 from app.flash import flash, get_flash
 from app.models import User, MailAccount, EmailMessage, Activity, Deal, Client, Lead
+from app.models.activity import ActivityType
 from app.services.ms_graph_mail import (
     build_authorize_url,
     exchange_code_for_token,
@@ -22,6 +24,7 @@ from app.services.mail_sync import (
     link_messages_to_activities,
     send_mail,
 )
+from app.services.smtp_mail import is_smtp_configured, smtp_send
 from app.templating import templates
 
 
@@ -58,6 +61,53 @@ def _pick_sender_account(db: Session, lead: Lead, fallback_user_id: int) -> Mail
         .filter_by(user_id=fallback_user_id, provider="microsoft_graph")
         .first()
     )
+
+
+def _record_smtp_activity(db: Session, lead: Lead, user_id: int, subject: str, body: str) -> None:
+    """Microsoft Graph sends are captured via Sent-Items sync; SMTP has no such
+    sync, so log an Activity directly to keep the email visible in CRM."""
+    activity = Activity(
+        type=ActivityType.EMAIL,
+        subject=subject or "(no subject)",
+        body=(body or "")[:2000],
+        client_id=lead.client_id,
+        lead_id=lead.id,
+        created_by_id=user_id,
+    )
+    db.add(activity)
+    db.commit()
+
+
+async def _send_to_lead(
+    db: Session,
+    lead: Lead,
+    current_user_id: int,
+    subject: str,
+    body_html: str,
+    cc_list: list[str] | None,
+) -> tuple[str | None, str | None]:
+    """Try Graph (owner's mailbox → current user's mailbox), then SMTP.
+    Returns (method, error). method is None on failure."""
+    if not lead.email:
+        return None, "no email"
+
+    account = _pick_sender_account(db, lead, current_user_id)
+    if account:
+        try:
+            await send_mail(db, account, [lead.email], cc_list, subject, body_html, None, lead.id, None)
+            return "graph", None
+        except Exception as e:
+            return None, str(e)
+
+    if is_smtp_configured():
+        try:
+            await asyncio.to_thread(smtp_send, [lead.email], cc_list, subject, body_html)
+            _record_smtp_activity(db, lead, current_user_id, subject, body_html)
+            return "smtp", None
+        except Exception as e:
+            return None, str(e)
+
+    return None, "no mailbox configured"
 
 
 @router.get("")
@@ -159,19 +209,6 @@ async def mail_send(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    account = (
-        db.query(MailAccount)
-        .filter_by(user_id=user.id, provider="microsoft_graph")
-        .first()
-    )
-    # If current user has no mailbox, try the lead owner's mailbox as fallback
-    if not account and lead_id.strip().isdigit():
-        lead = db.get(Lead, int(lead_id))
-        if lead:
-            account = _pick_sender_account(db, lead, user.id)
-    if not account:
-        raise HTTPException(400, "Connect your Outlook mailbox first (or no assigned owner has a mailbox connected)")
-
     to_list = [addr.strip() for addr in to.split(";") if addr.strip()]
     cc_list = [addr.strip() for addr in cc.split(";") if addr.strip()] if cc else None
 
@@ -179,14 +216,33 @@ async def mail_send(
     lid = int(lead_id) if lead_id.strip().isdigit() else None
     did = int(deal_id) if deal_id.strip().isdigit() else None
 
-    await send_mail(db, account, to_list, cc_list, subject, body_html, cid, lid, did)
+    # Try Microsoft Graph: current user's mailbox, then lead owner's mailbox
+    account = (
+        db.query(MailAccount)
+        .filter_by(user_id=user.id, provider="microsoft_graph")
+        .first()
+    )
+    if not account and lid:
+        lead = db.get(Lead, lid)
+        if lead:
+            account = _pick_sender_account(db, lead, user.id)
 
-    # Trigger a quick sync of sent items so the email appears in CRM soon
-    from app.services.mail_sync import sync_mail_folder
-    import asyncio
-    asyncio.create_task(sync_mail_folder(db, account, folder="sentItems"))
+    if account:
+        await send_mail(db, account, to_list, cc_list, subject, body_html, cid, lid, did)
+        from app.services.mail_sync import sync_mail_folder
+        asyncio.create_task(sync_mail_folder(db, account, folder="sentItems"))
+        return flash(RedirectResponse(redirect_to, 303), "Email sent")
 
-    return flash(RedirectResponse(redirect_to, 303), "Email sent")
+    # SMTP fallback
+    if is_smtp_configured():
+        await asyncio.to_thread(smtp_send, to_list, cc_list, subject, body_html)
+        if lid:
+            lead = db.get(Lead, lid)
+            if lead:
+                _record_smtp_activity(db, lead, user.id, subject, body_html)
+        return flash(RedirectResponse(redirect_to, 303), "Email sent (via SMTP)")
+
+    raise HTTPException(400, "No mailbox configured. Connect Outlook in Profile, or set SMTP_* env vars.")
 
 
 @router.post("/bulk-send")
@@ -216,23 +272,16 @@ async def mail_bulk_send(
     sent = 0
     skipped: list[str] = []
     for lead in leads:
-        if not lead.email:
-            skipped.append(f"{lead.name} (no email)")
-            continue
-        account = _pick_sender_account(db, lead, user.id)
-        if not account:
-            skipped.append(f"{lead.name} (no mailbox available)")
-            continue
-        try:
-            await send_mail(
-                db, account, [lead.email], cc_list,
-                _render_lead_template(subject, lead),
-                _render_lead_template(body_html, lead),
-                None, lead.id, None,
-            )
+        method, err = await _send_to_lead(
+            db, lead, user.id,
+            _render_lead_template(subject, lead),
+            _render_lead_template(body_html, lead),
+            cc_list,
+        )
+        if method:
             sent += 1
-        except Exception as e:
-            skipped.append(f"{lead.name} ({e})")
+        else:
+            skipped.append(f"{lead.name} ({err})")
 
     msg = f"Sent {sent} email(s)."
     if skipped:

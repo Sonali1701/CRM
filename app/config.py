@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     ms_redirect_uri: str = ""
     mail_sync_key: str = ""
     mail_sync_min_interval_seconds: int = 120
+    # SMTP fallback — used when no Microsoft Graph mailbox is connected
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""  # defaults to smtp_user if blank
+    smtp_use_tls: bool = True  # True = STARTTLS on 587; False = SSL on 465
     # Auto-create first admin on startup if DB is empty
     admin_email: str = ""
     admin_password: str = ""

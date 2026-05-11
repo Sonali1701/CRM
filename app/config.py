@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     env: str = "development"
     session_cookie_name: str = "crm_session"
     session_max_age_seconds: int = 60 * 60 * 24 * 14  # 14 days
+    ms_client_id: str = ""
+    ms_client_secret: str = ""
+    ms_tenant_id: str = "common"
+    ms_redirect_uri: str = ""
+    mail_sync_key: str = ""
+    mail_sync_min_interval_seconds: int = 120
     # Auto-create first admin on startup if DB is empty
     admin_email: str = ""
     admin_password: str = ""

@@ -31,12 +31,18 @@
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Company</label>
-          <input name="company" value="{{ lead.company if lead else '' }}" class="input" placeholder="Company name" list="companies-list" />
-          {% if clients %}
-          <datalist id="companies-list">
-            {% for c in clients %}<option value="{{ c.name }}">{% endfor %}
-          </datalist>
-          {% endif %}
+          <select name="client_id" id="client-id-select" class="select" onchange="onCompanySelect(this)">
+            <option value="">— No linked company —</option>
+            {% for c in clients %}
+              <option value="{{ c.id }}"
+                {% if (lead and lead.client_id == c.id) or (not lead and preset_client_id == c.id) %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+            <option value="new">+ New company name…</option>
+          </select>
+          <input name="company" id="company-text"
+            value="{{ lead.company if lead and not lead.client_id else '' }}"
+            class="input mt-1 {% if not (lead and not lead.client_id) %}hidden{% endif %}"
+            placeholder="Type company name" />
         </div>
       </div>
 
@@ -139,4 +145,24 @@
     </form>
   </div>
 </div>
+<script>
+function onCompanySelect(sel) {
+  const txt = document.getElementById('company-text');
+  if (sel.value === 'new') {
+    txt.classList.remove('hidden');
+    txt.focus();
+  } else {
+    txt.classList.add('hidden');
+    txt.value = '';
+  }
+}
+(function() {
+  const sel = document.getElementById('client-id-select');
+  const txt = document.getElementById('company-text');
+  if (txt && !sel.value && txt.value) {
+    sel.value = 'new';
+    txt.classList.remove('hidden');
+  }
+})();
+</script>
 {% endblock %}

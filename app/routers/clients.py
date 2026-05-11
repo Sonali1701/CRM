@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import require_user
 from app.flash import flash, get_flash
-from app.models import User, Client, Contact, Deal, Activity
+from app.models import User, Client, Contact, Deal, Activity, Lead
 from app.models.client import ClientType
 from app.services.enrich import enrich
 from app.templating import templates
@@ -86,12 +86,19 @@ def client_detail(client_id: int, request: Request, user: User = Depends(require
     activities = db.query(Activity).filter(
         or_(Activity.client_id == client_id, Activity.deal_id.in_(deal_ids) if deal_ids else False)
     ).order_by(Activity.created_at.desc()).limit(50).all()
+    linked_leads = (
+        db.query(Lead)
+        .filter(Lead.client_id == client_id)
+        .order_by(Lead.first_name)
+        .all()
+    )
     from app.models.activity import ActivityType
     return templates.TemplateResponse(request, "clients/detail.html", {
         "user": user, "flash": get_flash(request),
         "client": client, "types": list(ClientType), "reps": reps,
         "deals": deals, "activities": activities,
         "activity_types": list(ActivityType),
+        "linked_leads": linked_leads,
     })
 
 

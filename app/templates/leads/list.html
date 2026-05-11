@@ -2,6 +2,25 @@
 {% block title %}Contacts – Radixsol CRM{% endblock %}
 {% block content %}
 
+<div x-data="{
+  selected: [],
+  showMail: false,
+  toggle(id, name, email) {
+    const i = this.selected.findIndex(c => c.id === id);
+    if (i >= 0) this.selected.splice(i, 1);
+    else this.selected.push({id, name, email});
+  },
+  isSelected(id) { return this.selected.some(c => c.id === id); },
+  selectAll() {
+    this.selected = Array.from(document.querySelectorAll('[data-lead-id]')).map(el => ({
+      id: parseInt(el.dataset.leadId), name: el.dataset.leadName, email: el.dataset.leadEmail || ''
+    }));
+  },
+  clearAll() { this.selected = []; },
+  emailList() { return this.selected.filter(c => c.email).map(c => c.email).join(';'); },
+  noEmailCount() { return this.selected.filter(c => !c.email).length; }
+}">
+
 <div class="flex items-center justify-between mb-6">
   <div>
     <h1 class="text-xl font-semibold text-slate-900">Contacts</h1>
@@ -45,18 +64,33 @@
   </form>
 </div>
 
+<!-- Bulk action bar (shows when rows are checked) -->
+<div x-show="selected.length > 0" x-cloak
+     class="mb-3 px-4 py-2.5 bg-brand-50 border border-brand-200 rounded-lg flex items-center gap-3 text-sm">
+  <span class="font-medium text-brand-700" x-text="selected.length + ' selected'"></span>
+  <button @click="showMail = true" class="btn btn-primary btn-sm">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    Send Email
+  </button>
+  <button @click="clearAll()" class="btn btn-ghost btn-sm text-slate-500">Clear</button>
+</div>
+
 <!-- Table -->
 <div class="card overflow-hidden">
   {% if leads %}
   <table class="crm crm-compact w-full">
     <thead>
       <tr>
-        <th class="w-[26%]">Name</th>
-        <th class="w-[18%]">Title</th>
-        <th class="w-[18%]">Company</th>
+        <th class="w-8 px-3">
+          <input type="checkbox" class="rounded border-slate-300"
+            @change="$event.target.checked ? selectAll() : clearAll()" />
+        </th>
+        <th class="w-[24%]">Name</th>
+        <th class="w-[17%]">Title</th>
+        <th class="w-[17%]">Company</th>
         <th class="w-[10%]">Status</th>
-        <th class="w-[18%]">Owner</th>
-        <th class="w-[10%]"></th>
+        <th class="w-[17%]">Owner</th>
+        <th class="w-[7%]"></th>
       </tr>
     </thead>
     <tbody id="contacts-tbody">
@@ -74,4 +108,52 @@
   </div>
   {% endif %}
 </div>
+
+<!-- Bulk Mail Modal -->
+<div x-show="showMail" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+     @keydown.escape.window="showMail = false">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-xl" @click.stop>
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div>
+        <h2 class="font-semibold text-slate-900">Send Email</h2>
+        <p class="text-xs text-slate-500 mt-0.5" x-text="'To ' + selected.length + ' contact(s)'"></p>
+      </div>
+      <button @click="showMail = false" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/mail/send" class="p-5 space-y-4">
+      <input type="hidden" name="redirect_to" value="/leads" />
+      <div>
+        <label class="block text-sm font-medium mb-1">To</label>
+        <input name="to" class="input text-sm font-mono" :value="emailList()" required />
+        <p x-show="noEmailCount() > 0" class="text-xs text-amber-600 mt-1"
+           x-text="noEmailCount() + ' contact(s) skipped — no email address.'"></p>
+        <p x-show="emailList() === ''" class="text-xs text-red-600 mt-1">None of the selected contacts have email addresses.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">CC <span class="text-slate-400 font-normal">(optional)</span></label>
+        <input name="cc" class="input text-sm" placeholder="cc@example.com" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Subject <span class="text-red-500">*</span></label>
+        <input name="subject" class="input text-sm" required placeholder="Email subject…" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Message <span class="text-red-500">*</span></label>
+        <textarea name="body_html" rows="6" class="textarea text-sm" required placeholder="Write your message…"></textarea>
+      </div>
+      <div class="flex gap-2 justify-end pt-1">
+        <button type="button" @click="showMail = false" class="btn btn-secondary">Cancel</button>
+        <button type="submit" :disabled="emailList() === ''" class="btn btn-primary disabled:opacity-50">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+</div><!-- end x-data wrapper -->
 {% endblock %}

@@ -44,6 +44,7 @@ class Lead(Base):
     status: Mapped[LeadStatus] = mapped_column(Enum(LeadStatus), default=LeadStatus.NEW, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    client_id: Mapped[int | None] = mapped_column(ForeignKey("clients.id"), nullable=True, index=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     converted_client_id: Mapped[int | None] = mapped_column(ForeignKey("clients.id"), nullable=True)
 
@@ -56,6 +57,7 @@ class Lead(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    client = relationship("Client", foreign_keys=[client_id])
     owner = relationship("User", back_populates="leads", foreign_keys=[owner_id])
     converted_client = relationship("Client", foreign_keys=[converted_client_id])
 

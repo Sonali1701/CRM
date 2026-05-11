@@ -33,5 +33,31 @@
       <button type="submit" class="btn btn-primary">Save Changes</button>
     </form>
   </div>
+
+  <!-- Mail Integration -->
+  <h2 class="text-lg font-semibold mt-8 mb-3">Mail Integration</h2>
+  <div class="card p-6">
+    {% if mail_account %}
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-slate-900">{{ mail_account.mailbox }}</p>
+          <p class="text-xs text-green-600 font-medium">Outlook connected</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <a href="/mail" class="btn btn-secondary text-sm">View Inbox</a>
+        <form method="post" action="/mail/sync" onsubmit="return true">
+          <input type="hidden" name="redirect_to" value="/users/profile" />
+          <button type="submit" class="btn btn-secondary text-sm">Sync Now</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="text-sm text-slate-500 mb-4">Connect your Outlook / Microsoft 365 mailbox to sync emails and log them to contacts, companies, and deals automatically.</p>
+      <a href="/mail/connect" class="btn btn-primary text-sm">Connect Outlook</a>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

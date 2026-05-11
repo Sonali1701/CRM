@@ -52,11 +52,13 @@ def leads_delete_all(user: User = Depends(require_user), db: Session = Depends(g
 
 
 @router.get("/new")
-def lead_new(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+def lead_new(request: Request, client_id: str = "", user: User = Depends(require_user), db: Session = Depends(get_db)):
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
     clients = db.query(Client).order_by(Client.name).all()
+    preset_client_id = int(client_id) if client_id.strip().isdigit() else None
     return templates.TemplateResponse(request, "leads/form.html", {
-        "user": user, "lead": None, "reps": reps, "statuses": list(LeadStatus), "clients": clients,
+        "user": user, "lead": None, "reps": reps, "statuses": list(LeadStatus),
+        "clients": clients, "preset_client_id": preset_client_id,
     })
 
 
@@ -65,6 +67,7 @@ def lead_create(
     request: Request,
     first_name: str = Form(...), last_name: str = Form(""),
     job_title: str = Form(""), company: str = Form(""),
+    client_id: str = Form(""),
     email: str = Form(""), mobile: str = Form(""), phone: str = Form(""),
     linkedin_url: str = Form(""),
     city: str = Form(""), state: str = Form(""), country: str = Form(""),
@@ -73,9 +76,16 @@ def lead_create(
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     owner = int(owner_id) if owner_id.strip().isdigit() else None
+    cid = int(client_id) if client_id.strip().isdigit() else None
+    resolved_company = company or None
+    if cid:
+        linked = db.get(Client, cid)
+        if linked:
+            resolved_company = linked.name
     lead = Lead(
         first_name=first_name, last_name=last_name or None,
-        job_title=job_title or None, company=company or None,
+        job_title=job_title or None, company=resolved_company,
+        client_id=cid,
         email=email or None, mobile=mobile or None, phone=phone or None,
         linkedin_url=linkedin_url or None,
         city=city or None, state=state or None, country=country or None,
@@ -104,6 +114,7 @@ def lead_update(
     lead_id: int, request: Request,
     first_name: str = Form(...), last_name: str = Form(""),
     job_title: str = Form(""), company: str = Form(""),
+    client_id: str = Form(""),
     email: str = Form(""), mobile: str = Form(""), phone: str = Form(""),
     linkedin_url: str = Form(""),
     city: str = Form(""), state: str = Form(""), country: str = Form(""),
@@ -112,10 +123,17 @@ def lead_update(
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     lead = _get_lead(lead_id, user, db)
+    cid = int(client_id) if client_id.strip().isdigit() else None
+    resolved_company = company or None
+    if cid:
+        linked = db.get(Client, cid)
+        if linked:
+            resolved_company = linked.name
     lead.first_name = first_name
     lead.last_name = last_name or None
     lead.job_title = job_title or None
-    lead.company = company or None
+    lead.company = resolved_company
+    lead.client_id = cid
     lead.email = email or None
     lead.mobile = mobile or None
     lead.phone = phone or None

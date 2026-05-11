@@ -86,8 +86,10 @@ def login_activity(request: Request, user: User = Depends(require_admin), db: Se
 
 @router.get("/profile")
 def profile(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    from app.models import MailAccount
+    mail_account = db.query(MailAccount).filter_by(user_id=user.id, provider="microsoft_graph").first()
     return templates.TemplateResponse(request, "users/profile.html", {
-        "user": user, "flash": get_flash(request),
+        "user": user, "flash": get_flash(request), "mail_account": mail_account,
     })
 
 

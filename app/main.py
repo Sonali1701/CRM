@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.deps import AuthRedirect
 from app.flash import get_flash, clear_flash_response
-from app.routers import auth, leads, clients, deals, activities, dashboard, users, pipeline, imports
+from app.routers import auth, leads, clients, deals, activities, dashboard, users, pipeline, imports, mail
 
 app = FastAPI(title="Radixsol CRM")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -18,6 +18,7 @@ app.include_router(dashboard.router)
 app.include_router(users.router, prefix="/users")
 app.include_router(pipeline.router)
 app.include_router(imports.router, prefix="/import")
+app.include_router(mail.router, prefix="/mail")
 
 
 @app.on_event("startup")

@@ -1,4 +1,11 @@
-<tr>
+<tr data-lead-id="{{ lead.id }}"
+    data-lead-name="{{ lead.name | e }}"
+    data-lead-email="{{ lead.email or '' }}">
+  <td class="px-3">
+    <input type="checkbox" class="rounded border-slate-300"
+      :checked="isSelected({{ lead.id }})"
+      @change="toggle({{ lead.id }}, '{{ lead.name | replace("'", "\\'") }}', '{{ lead.email or '' }}')" />
+  </td>
   <td>
     <div class="flex items-center gap-2 min-w-0">
       <div class="avatar text-white flex-shrink-0"
@@ -15,7 +22,11 @@
     <div class="truncate" title="{{ lead.job_title or '' }}">{{ lead.job_title or '—' }}</div>
   </td>
   <td class="text-slate-600">
-    <div class="truncate" title="{{ lead.company or '' }}">{{ lead.company or '—' }}</div>
+    {% if lead.client_id %}
+      <a href="/clients/{{ lead.client_id }}" class="truncate hover:text-brand-600 block" title="{{ lead.company or '' }}">{{ lead.company or '—' }}</a>
+    {% else %}
+      <div class="truncate" title="{{ lead.company or '' }}">{{ lead.company or '—' }}</div>
+    {% endif %}
   </td>
   <td><span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span></td>
   <td>

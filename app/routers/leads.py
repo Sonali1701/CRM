@@ -20,6 +20,21 @@ def _leads_query(db: Session, user: User):
     return q
 
 
+def _resolve_client_id(db: Session, explicit_id: int | None, company_name: str | None) -> tuple[int | None, str | None]:
+    """Return (client_id, resolved_company_name). If explicit_id is set, use it.
+    Otherwise, match a Client whose name equals the company text (case-insensitive)."""
+    if explicit_id:
+        c = db.get(Client, explicit_id)
+        if c:
+            return c.id, c.name
+        return None, company_name
+    if company_name:
+        match = db.query(Client).filter(Client.name.ilike(company_name.strip())).first()
+        if match:
+            return match.id, match.name
+    return None, company_name
+
+
 @router.get("")
 def leads_list(request: Request, status: str = "", search: str = "", user: User = Depends(require_user), db: Session = Depends(get_db)):
     q = _leads_query(db, user)
@@ -76,12 +91,8 @@ def lead_create(
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     owner = int(owner_id) if owner_id.strip().isdigit() else None
-    cid = int(client_id) if client_id.strip().isdigit() else None
-    resolved_company = company or None
-    if cid:
-        linked = db.get(Client, cid)
-        if linked:
-            resolved_company = linked.name
+    explicit_cid = int(client_id) if client_id.strip().isdigit() else None
+    cid, resolved_company = _resolve_client_id(db, explicit_cid, company or None)
     lead = Lead(
         first_name=first_name, last_name=last_name or None,
         job_title=job_title or None, company=resolved_company,
@@ -123,12 +134,8 @@ def lead_update(
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
     lead = _get_lead(lead_id, user, db)
-    cid = int(client_id) if client_id.strip().isdigit() else None
-    resolved_company = company or None
-    if cid:
-        linked = db.get(Client, cid)
-        if linked:
-            resolved_company = linked.name
+    explicit_cid = int(client_id) if client_id.strip().isdigit() else None
+    cid, resolved_company = _resolve_client_id(db, explicit_cid, company or None)
     lead.first_name = first_name
     lead.last_name = last_name or None
     lead.job_title = job_title or None

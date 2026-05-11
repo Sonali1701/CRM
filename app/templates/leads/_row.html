@@ -1,10 +1,22 @@
 <tr data-lead-id="{{ lead.id }}"
+    data-lead-first="{{ lead.first_name | e }}"
+    data-lead-last="{{ (lead.last_name or '') | e }}"
     data-lead-name="{{ lead.name | e }}"
-    data-lead-email="{{ lead.email or '' }}">
+    data-lead-email="{{ lead.email or '' }}"
+    data-lead-company="{{ (lead.company or '') | e }}"
+    data-lead-title="{{ (lead.job_title or '') | e }}">
   <td class="px-3">
     <input type="checkbox" class="rounded border-slate-300"
       :checked="isSelected({{ lead.id }})"
-      @change="toggle({{ lead.id }}, '{{ lead.name | replace("'", "\\'") }}', '{{ lead.email or '' }}')" />
+      @change="toggle({
+        id: {{ lead.id }},
+        first_name: '{{ lead.first_name | replace("'", "\\'") }}',
+        last_name: '{{ (lead.last_name or '') | replace("'", "\\'") }}',
+        name: '{{ lead.name | replace("'", "\\'") }}',
+        email: '{{ lead.email or '' }}',
+        company: '{{ (lead.company or '') | replace("'", "\\'") }}',
+        title: '{{ (lead.job_title or '') | replace("'", "\\'") }}'
+      })" />
   </td>
   <td>
     <div class="flex items-center gap-2 min-w-0">

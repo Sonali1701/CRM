@@ -28,6 +28,38 @@ from app.templating import templates
 router = APIRouter()
 
 
+def _render_lead_template(text: str, lead: Lead) -> str:
+    """Substitute {{placeholder}} tokens with this lead's fields."""
+    if not text:
+        return ""
+    return (
+        text
+        .replace("{{first_name}}", lead.first_name or "")
+        .replace("{{last_name}}", lead.last_name or "")
+        .replace("{{name}}", lead.name)
+        .replace("{{company}}", lead.company or "")
+        .replace("{{title}}", lead.job_title or "")
+        .replace("{{email}}", lead.email or "")
+    )
+
+
+def _pick_sender_account(db: Session, lead: Lead, fallback_user_id: int) -> MailAccount | None:
+    """Return the lead owner's mailbox; fall back to the fallback user's mailbox."""
+    if lead.owner_id:
+        owner_acc = (
+            db.query(MailAccount)
+            .filter_by(user_id=lead.owner_id, provider="microsoft_graph")
+            .first()
+        )
+        if owner_acc:
+            return owner_acc
+    return (
+        db.query(MailAccount)
+        .filter_by(user_id=fallback_user_id, provider="microsoft_graph")
+        .first()
+    )
+
+
 @router.get("")
 def mail_inbox(
     request: Request,
@@ -132,8 +164,13 @@ async def mail_send(
         .filter_by(user_id=user.id, provider="microsoft_graph")
         .first()
     )
+    # If current user has no mailbox, try the lead owner's mailbox as fallback
+    if not account and lead_id.strip().isdigit():
+        lead = db.get(Lead, int(lead_id))
+        if lead:
+            account = _pick_sender_account(db, lead, user.id)
     if not account:
-        raise HTTPException(400, "Connect your Outlook mailbox first")
+        raise HTTPException(400, "Connect your Outlook mailbox first (or no assigned owner has a mailbox connected)")
 
     to_list = [addr.strip() for addr in to.split(";") if addr.strip()]
     cc_list = [addr.strip() for addr in cc.split(";") if addr.strip()] if cc else None
@@ -150,6 +187,59 @@ async def mail_send(
     asyncio.create_task(sync_mail_folder(db, account, folder="sentItems"))
 
     return flash(RedirectResponse(redirect_to, 303), "Email sent")
+
+
+@router.post("/bulk-send")
+async def mail_bulk_send(
+    request: Request,
+    lead_ids: str = Form(""),
+    subject: str = Form(...),
+    body_html: str = Form(...),
+    cc: str = Form(""),
+    redirect_to: str = Form("/leads"),
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """Send a personalized email to each selected contact, using each contact's
+    assigned owner's mailbox (falling back to the current user's mailbox)."""
+    ids = [int(x) for x in lead_ids.split(",") if x.strip().isdigit()]
+    if not ids:
+        raise HTTPException(400, "No contacts selected")
+
+    q = db.query(Lead).filter(Lead.id.in_(ids))
+    if not user.is_manager:
+        q = q.filter(Lead.owner_id == user.id)
+    leads = q.all()
+
+    cc_list = [addr.strip() for addr in cc.split(";") if addr.strip()] if cc else None
+
+    sent = 0
+    skipped: list[str] = []
+    for lead in leads:
+        if not lead.email:
+            skipped.append(f"{lead.name} (no email)")
+            continue
+        account = _pick_sender_account(db, lead, user.id)
+        if not account:
+            skipped.append(f"{lead.name} (no mailbox available)")
+            continue
+        try:
+            await send_mail(
+                db, account, [lead.email], cc_list,
+                _render_lead_template(subject, lead),
+                _render_lead_template(body_html, lead),
+                None, lead.id, None,
+            )
+            sent += 1
+        except Exception as e:
+            skipped.append(f"{lead.name} ({e})")
+
+    msg = f"Sent {sent} email(s)."
+    if skipped:
+        msg += f" Skipped {len(skipped)}: {'; '.join(skipped[:3])}"
+        if len(skipped) > 3:
+            msg += f" …+{len(skipped) - 3} more"
+    return flash(RedirectResponse(redirect_to, 303), msg, "success" if sent else "error")
 
 
 @router.post("/sync")

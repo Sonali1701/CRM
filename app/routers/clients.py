@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -73,6 +73,12 @@ def client_create(
         phone=phone or None, email=email or None, linkedin_url=linkedin_url or None,
     )
     db.add(client)
+    db.flush()
+    # Retroactively link any unlinked leads whose company text matches this name
+    db.query(Lead).filter(
+        Lead.client_id.is_(None),
+        Lead.company.ilike(client.name),
+    ).update({"client_id": client.id}, synchronize_session=False)
     db.commit()
     return flash(RedirectResponse(f"/clients/{client.id}", 303), "Company created.")
 
@@ -88,7 +94,10 @@ def client_detail(client_id: int, request: Request, user: User = Depends(require
     ).order_by(Activity.created_at.desc()).limit(50).all()
     linked_leads = (
         db.query(Lead)
-        .filter(Lead.client_id == client_id)
+        .filter(or_(
+            Lead.client_id == client_id,
+            and_(Lead.client_id.is_(None), Lead.company.ilike(client.name)),
+        ))
         .order_by(Lead.first_name)
         .all()
     )

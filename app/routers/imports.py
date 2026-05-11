@@ -375,17 +375,22 @@ def _trunc(value: str, maxlen: int) -> str | None:
 def _import_leads(rows: list[dict], mapping: dict, user: User, db: Session) -> dict:
     imported, skipped = [], []
     first_col = mapping.get("first_name", "")
+    # Build lookup of existing companies once so each row doesn't hit the DB
+    client_map = {c.name.lower(): c.id for c in db.query(Client).all()}
 
     for i, row in enumerate(rows, start=2):
         first_name_raw = _get_val(row, first_col)
         if not first_name_raw:
             skipped.append({"row": i, "data": row, "reason": "First name is empty"})
             continue
+        company_val = _trunc(_get_val(row, mapping.get("company", "")), 255)
+        client_id = client_map.get(company_val.lower()) if company_val else None
         lead = Lead(
             first_name=_trunc(first_name_raw, 100),
             last_name=_trunc(_get_val(row, mapping.get("last_name", "")), 100),
             job_title=_trunc(_get_val(row, mapping.get("job_title", "")), 255),
-            company=_trunc(_get_val(row, mapping.get("company", "")), 255),
+            company=company_val,
+            client_id=client_id,
             email=_trunc(_get_val(row, mapping.get("email", "")), 255),
             mobile=_trunc(_get_val(row, mapping.get("mobile", "")), 50),
             phone=_trunc(_get_val(row, mapping.get("phone", "")), 50),
@@ -441,5 +446,14 @@ def _import_clients(rows: list[dict], mapping: dict, user: User, db: Session) ->
         db.add(client)
         imported.append({"row": i, "name": client.name, "type": type_raw})
 
+    db.flush()
+    # Retroactively link unlinked leads to any newly-imported company by name
+    for entry in imported:
+        new_id = db.query(Client.id).filter(Client.name == entry["name"]).scalar()
+        if new_id:
+            db.query(Lead).filter(
+                Lead.client_id.is_(None),
+                Lead.company.ilike(entry["name"]),
+            ).update({"client_id": new_id}, synchronize_session=False)
     db.commit()
     return {"imported": imported, "skipped": skipped}

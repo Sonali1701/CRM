@@ -208,6 +208,7 @@
       <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
         <p class="text-xs font-medium text-slate-600 mb-2">Drag a placeholder into Subject or Message — it's replaced per contact:</p>
         <div class="flex flex-wrap gap-1.5">
+          {% raw %}
           <template x-for="token in ['{{name}}', '{{first_name}}', '{{last_name}}', '{{company}}', '{{title}}', '{{email}}']" :key="token">
             <button type="button"
               draggable="true"
@@ -218,6 +219,7 @@
               <span x-text="token"></span>
             </button>
           </template>
+          {% endraw %}
         </div>
         <p class="text-xs text-slate-400 mt-2">Drag a chip onto the field, or click it to insert at the cursor.</p>
       </div>
@@ -227,7 +229,7 @@
         <input id="mail-subject" name="subject" x-model="subject" class="input text-sm" required
                @dragover.prevent
                @drop.prevent="onDrop($event, 'mail-subject')"
-               placeholder="e.g. Following up with {{first_name}} at {{company}}" />
+               {% raw %}placeholder="e.g. Following up with {{first_name}} at {{company}}"{% endraw %} />
       </div>
 
       <div>
@@ -235,7 +237,7 @@
         <textarea id="mail-body" name="body_html" x-model="body" rows="8" class="textarea text-sm" required
                   @dragover.prevent
                   @drop.prevent="onDrop($event, 'mail-body')"
-                  placeholder="Hi {{first_name}},&#10;&#10;Hope you're doing well at {{company}}…"></textarea>
+                  {% raw %}placeholder="Hi {{first_name}},&#10;&#10;Hope you're doing well at {{company}}…"{% endraw %}></textarea>
       </div>
 
       <!-- Preview -->

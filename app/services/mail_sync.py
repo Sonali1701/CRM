@@ -143,6 +143,23 @@ def create_activity_for_message(db: Session, message: EmailMessage, user_id: int
 
     client_id, lead_id, deal_id = _match_to_crm_record(db, message)
 
+    # Outbound messages may already have an Activity created at send-time —
+    # link this message to it instead of creating a duplicate.
+    if not message.is_inbound and lead_id and message.subject:
+        existing = (
+            db.query(Activity)
+            .filter(
+                Activity.lead_id == lead_id,
+                Activity.type == ActivityType.EMAIL,
+                Activity.subject == message.subject,
+                Activity.created_at >= _now() - timedelta(hours=24),
+            )
+            .first()
+        )
+        if existing:
+            message.activity_id = existing.id
+            return existing
+
     activity = Activity(
         type=ActivityType.EMAIL,
         subject=message.subject or "(No subject)",

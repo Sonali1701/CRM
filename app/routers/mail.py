@@ -63,19 +63,41 @@ def _pick_sender_account(db: Session, lead: Lead, fallback_user_id: int) -> Mail
     )
 
 
-def _record_smtp_activity(db: Session, lead: Lead, user_id: int, subject: str, body: str) -> None:
-    """Microsoft Graph sends are captured via Sent-Items sync; SMTP has no such
-    sync, so log an Activity directly to keep the email visible in CRM."""
+def _record_email_activity(db: Session, lead: Lead, user_id: int, subject: str, body: str) -> Activity:
+    """Log a sent email as an Activity so it shows up in:
+      - /activities (filtered by created_by_id)
+      - the contact's company page (filtered by client_id or deal_id)
+      - the linked deal's page + the pipeline (via deal.last_activity_at)
+
+    We also try to attach the activity to the first open deal for the lead's
+    company so the pipeline reflects the touch."""
+    deal_id = None
+    if lead.client_id:
+        from app.models.deal import OPEN_STAGES
+        open_deal = (
+            db.query(Deal)
+            .filter(Deal.client_id == lead.client_id, Deal.stage.in_(OPEN_STAGES))
+            .order_by(Deal.created_at.desc())
+            .first()
+        )
+        if open_deal:
+            deal_id = open_deal.id
+            open_deal.last_activity_at = datetime.now(timezone.utc)
+
     activity = Activity(
         type=ActivityType.EMAIL,
         subject=subject or "(no subject)",
         body=(body or "")[:2000],
         client_id=lead.client_id,
         lead_id=lead.id,
+        deal_id=deal_id,
         created_by_id=user_id,
+        completed=True,
+        completed_at=datetime.now(timezone.utc),
     )
     db.add(activity)
     db.commit()
+    return activity
 
 
 async def _send_to_lead(
@@ -95,6 +117,10 @@ async def _send_to_lead(
     if account:
         try:
             await send_mail(db, account, [lead.email], cc_list, subject, body_html, None, lead.id, None)
+            # Sender = the owner of the mailbox we used, not necessarily the
+            # logged-in user; falls back to current user when no owner mailbox.
+            sender_id = account.user_id or current_user_id
+            _record_email_activity(db, lead, sender_id, subject, body_html)
             return "graph", None
         except Exception as e:
             return None, str(e)
@@ -102,7 +128,7 @@ async def _send_to_lead(
     if is_smtp_configured():
         try:
             await asyncio.to_thread(smtp_send, [lead.email], cc_list, subject, body_html)
-            _record_smtp_activity(db, lead, current_user_id, subject, body_html)
+            _record_email_activity(db, lead, current_user_id, subject, body_html)
             return "smtp", None
         except Exception as e:
             return None, str(e)
@@ -239,8 +265,10 @@ async def mail_send(
 
     if account:
         await send_mail(db, account, to_list, cc_list, subject, body_html, cid, lid, did)
-        from app.services.mail_sync import sync_mail_folder
-        asyncio.create_task(sync_mail_folder(db, account, folder="sentItems"))
+        if lid:
+            lead = db.get(Lead, lid)
+            if lead:
+                _record_email_activity(db, lead, account.user_id or user.id, subject, body_html)
         return flash(RedirectResponse(redirect_to, 303), "Email sent")
 
     # SMTP fallback
@@ -249,7 +277,7 @@ async def mail_send(
         if lid:
             lead = db.get(Lead, lid)
             if lead:
-                _record_smtp_activity(db, lead, user.id, subject, body_html)
+                _record_email_activity(db, lead, user.id, subject, body_html)
         return flash(RedirectResponse(redirect_to, 303), "Email sent (via SMTP)")
 
     raise HTTPException(400, "No mailbox configured. Connect Outlook in Profile, or set SMTP_* env vars.")

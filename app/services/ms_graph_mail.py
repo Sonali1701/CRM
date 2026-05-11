@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 from sqlalchemy.orm import Session
@@ -44,7 +45,7 @@ def build_authorize_url(state: str) -> str:
         "scope": scope,
         "state": state,
     }
-    return str(httpx.URL(f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize").copy_add_params(params))
+    return f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize?{urlencode(params)}"
 
 
 async def exchange_code_for_token(code: str) -> GraphToken:

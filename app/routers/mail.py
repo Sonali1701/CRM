@@ -107,7 +107,17 @@ async def _send_to_lead(
         except Exception as e:
             return None, str(e)
 
-    return None, "no mailbox configured"
+    # Helpful error naming the user who needs to connect
+    owner_name = "owner"
+    if lead.owner_id:
+        owner = db.get(User, lead.owner_id)
+        if owner:
+            owner_name = owner.full_name
+    else:
+        me = db.get(User, current_user_id)
+        if me:
+            owner_name = me.full_name
+    return None, f"{owner_name} needs to connect Outlook in Profile"
 
 
 @router.get("")

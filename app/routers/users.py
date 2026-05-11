@@ -18,16 +18,22 @@ router = APIRouter()
 
 @router.get("")
 def users_list(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.models import MailAccount
     users = db.query(User).order_by(User.full_name).all()
-    # Attach last login to each user
+    # Attach last login + mailbox status to each user
     last_logins = {}
+    mailboxes: dict[int, str] = {}
     for u in users:
         ev = db.query(LoginEvent).filter(LoginEvent.user_id == u.id)\
                .order_by(LoginEvent.logged_in_at.desc()).first()
         last_logins[u.id] = ev
+        acc = db.query(MailAccount).filter_by(user_id=u.id, provider="microsoft_graph").first()
+        if acc:
+            mailboxes[u.id] = acc.mailbox or ""
     return templates.TemplateResponse(request, "users/list.html", {
         "user": user, "flash": get_flash(request),
-        "users": users, "roles": list(UserRole), "last_logins": last_logins,
+        "users": users, "roles": list(UserRole),
+        "last_logins": last_logins, "mailboxes": mailboxes,
     })
 
 

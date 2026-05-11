@@ -17,11 +17,12 @@
   <div class="lg:col-span-2 card overflow-hidden">
     <table class="crm">
       <thead>
-        <tr><th>User</th><th>Role</th><th>Last Login</th><th>Status</th><th></th></tr>
+        <tr><th>User</th><th>Role</th><th>Mailbox</th><th>Last Login</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
         {% for u in users %}
           {% set ev = last_logins.get(u.id) %}
+          {% set mbox = mailboxes.get(u.id) %}
           <tr>
             <td>
               <div class="flex items-center gap-3">
@@ -36,6 +37,16 @@
               </div>
             </td>
             <td><span class="badge badge-{{ u.role.value }}">{{ u.role.value | humanize }}</span></td>
+            <td class="text-sm">
+              {% if mbox %}
+                <span class="inline-flex items-center gap-1 text-green-700">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span class="truncate max-w-[160px]" title="{{ mbox }}">{{ mbox }}</span>
+                </span>
+              {% else %}
+                <span class="text-xs text-amber-600">Not connected</span>
+              {% endif %}
+            </td>
             <td class="text-sm text-slate-500">
               {% if ev %}
                 {{ ev.logged_in_at | date }}

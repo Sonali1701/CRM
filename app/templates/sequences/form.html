@@ -1,13 +1,42 @@
 {% extends "base.html" %}
 {% block title %}{{ sequence.name if sequence else 'New Sequence' }} – Radixsol CRM{% endblock %}
 {% block content %}
+
+{# Reusable chip + drop handler for any subject/body inputs on this page #}
+{% macro placeholder_toolbar(subject_id, body_id) %}
+<div class="bg-slate-50 border border-slate-200 rounded-md p-2.5">
+  <p class="text-xs font-medium text-slate-600 mb-1.5">Drag a placeholder into Subject or Message — replaced per contact:</p>
+  <div class="flex flex-wrap gap-1.5">
+    {% for token in ['{{name}}', '{{first_name}}', '{{last_name}}', '{{company}}', '{{title}}', '{{email}}'] %}
+      <button type="button" draggable="true"
+        data-token="{{ token }}"
+        data-subject-id="{{ subject_id }}"
+        data-body-id="{{ body_id }}"
+        class="placeholder-chip text-xs px-2 py-1 rounded bg-white border border-slate-200 hover:border-brand-400 hover:text-brand-600 font-mono cursor-move select-none active:opacity-60">
+        <svg class="w-3 h-3 inline-block mr-0.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+        {{ token }}
+      </button>
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
+{# Compute the total span of the sequence so users see "Sends 3 emails over 7 days" #}
+{% set total_days = 0 %}
+{% if sequence %}
+  {% for step in sequence.steps %}{% set total_days = total_days + step.delay_days %}{% endfor %}
+{% endif %}
+
 <div class="max-w-3xl">
-  <div class="mb-5 flex items-center gap-3">
+  <div class="mb-5 flex items-center gap-3 flex-wrap">
     <a href="/sequences" class="text-slate-400 hover:text-slate-600 text-sm">← Sequences</a>
     <h1 class="text-xl font-semibold">{{ sequence.name if sequence else 'New Sequence' }}</h1>
     {% if sequence %}
       {% if sequence.is_active %}<span class="badge bg-green-100 text-green-700">Active</span>
       {% else %}<span class="badge bg-slate-100 text-slate-500">Paused</span>{% endif %}
+      {% if sequence.steps %}
+        <span class="text-sm text-slate-500">Sends {{ sequence.steps | length }} email{{ '' if sequence.steps | length == 1 else 's' }}{% if total_days > 0 %} over {{ total_days }} day{{ '' if total_days == 1 else 's' }}{% endif %}</span>
+      {% endif %}
     {% endif %}
   </div>
 
@@ -42,52 +71,108 @@
   {% if sequence %}
   <!-- Steps -->
   <div class="card p-6 mb-5">
-    <h2 class="font-semibold text-sm text-slate-700 mb-4">Steps ({{ sequence.steps | length }})</h2>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold text-sm text-slate-700">Steps ({{ sequence.steps | length }})</h2>
+      <button type="button" onclick="document.getElementById('add-step-form').classList.toggle('hidden'); document.getElementById('new-step-subject').focus()"
+              class="btn btn-primary btn-sm">+ Add Step</button>
+    </div>
+
     {% if sequence.steps %}
-      <div class="space-y-3 mb-5">
+      <div class="space-y-3 mb-4">
         {% for step in sequence.steps %}
-        <div class="flex gap-3 p-3 border border-slate-200 rounded-lg">
-          <div class="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold flex-shrink-0">
-            {{ step.step_number }}
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-start justify-between gap-2">
-              <p class="text-sm font-medium text-slate-900 truncate">{{ step.subject }}</p>
-              <span class="text-xs text-slate-500 flex-shrink-0">
-                {% if step.delay_days == 0 %}Immediately{% else %}+{{ step.delay_days }} day{{ '' if step.delay_days == 1 else 's' }}{% endif %}
-              </span>
+        <div class="border border-slate-200 rounded-lg overflow-hidden" x-data="{ editing: false }">
+          <!-- Read-only summary -->
+          <div x-show="!editing" class="flex gap-3 p-4">
+            <div class="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-sm font-bold flex-shrink-0">
+              {{ step.step_number }}
             </div>
-            <p class="text-xs text-slate-500 mt-1 whitespace-pre-line">{{ step.body[:200] }}{% if step.body | length > 200 %}…{% endif %}</p>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between gap-2 mb-1">
+                <p class="text-sm font-medium text-slate-900 truncate">{{ step.subject }}</p>
+                <span class="text-xs text-slate-500 flex-shrink-0 px-2 py-0.5 rounded bg-slate-100">
+                  {% if loop.first %}On enroll
+                  {% elif step.delay_days == 0 %}Immediately
+                  {% else %}+{{ step.delay_days }} day{{ '' if step.delay_days == 1 else 's' }}{% endif %}
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 whitespace-pre-line line-clamp-3">{{ step.body[:240] }}{% if step.body | length > 240 %}…{% endif %}</p>
+              <div class="flex gap-2 mt-2">
+                <button type="button" @click="editing = true" class="text-xs text-brand-600 hover:underline">Edit</button>
+                {% if not loop.first %}
+                <form method="post" action="/sequences/{{ sequence.id }}/steps/{{ step.id }}/move" class="inline">
+                  <input type="hidden" name="direction" value="up" />
+                  <button class="text-xs text-slate-500 hover:text-slate-700" title="Move up">↑</button>
+                </form>
+                {% endif %}
+                {% if not loop.last %}
+                <form method="post" action="/sequences/{{ sequence.id }}/steps/{{ step.id }}/move" class="inline">
+                  <input type="hidden" name="direction" value="down" />
+                  <button class="text-xs text-slate-500 hover:text-slate-700" title="Move down">↓</button>
+                </form>
+                {% endif %}
+                <form method="post" action="/sequences/{{ sequence.id }}/steps/{{ step.id }}/delete" class="inline ml-auto" onsubmit="return confirm('Remove this step?')">
+                  <button class="text-xs text-red-500 hover:text-red-700">Delete</button>
+                </form>
+              </div>
+            </div>
           </div>
-          <form method="post" action="/sequences/{{ sequence.id }}/steps/{{ step.id }}/delete" onsubmit="return confirm('Remove this step?')">
-            <button class="text-slate-300 hover:text-red-500 text-sm" title="Remove">✕</button>
+
+          <!-- Inline edit form -->
+          <form x-show="editing" x-cloak method="post" action="/sequences/{{ sequence.id }}/steps/{{ step.id }}" class="p-4 space-y-3 bg-slate-50">
+            <div class="flex items-center gap-2 text-sm">
+              <span class="font-medium">Step {{ step.step_number }}</span>
+              <span class="text-slate-400">·</span>
+              <label class="text-slate-600">Delay (days):</label>
+              <input type="number" name="delay_days" min="0" value="{{ step.delay_days }}" class="input text-sm w-20 py-1" />
+              <span class="text-xs text-slate-400">{% if loop.first %}(0 = send on enrollment){% endif %}</span>
+            </div>
+            {{ placeholder_toolbar('edit-subj-' ~ step.id, 'edit-body-' ~ step.id) }}
+            <div>
+              <label class="block text-xs font-medium mb-1">Subject <span class="text-red-500">*</span></label>
+              <input id="edit-subj-{{ step.id }}" name="subject" value="{{ step.subject }}" required class="input text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium mb-1">Message <span class="text-red-500">*</span></label>
+              <textarea id="edit-body-{{ step.id }}" name="body" required rows="6" class="textarea text-sm">{{ step.body }}</textarea>
+            </div>
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-primary btn-sm">Save Step</button>
+              <button type="button" @click="editing = false" class="btn btn-secondary btn-sm">Cancel</button>
+            </div>
           </form>
         </div>
         {% endfor %}
       </div>
+    {% else %}
+      <p class="text-sm text-slate-400 mb-4">No steps yet — add the first one below.</p>
     {% endif %}
 
-    <details>
-      <summary class="text-sm text-brand-600 cursor-pointer hover:underline mb-3">+ Add a step</summary>
-      <form method="post" action="/sequences/{{ sequence.id }}/steps/new" class="space-y-3 mt-3">
-        <div>
-          <label class="block text-xs font-medium mb-1">Delay (days after previous step)</label>
-          <input type="number" name="delay_days" min="0" value="3" class="input text-sm w-32" />
-          <p class="text-xs text-slate-400 mt-1">First step: 0 = send immediately on enroll.</p>
+    <!-- Add step form (hidden by default; toggled by + Add Step button) -->
+    <div id="add-step-form" class="border border-dashed border-slate-300 rounded-lg p-4 {% if sequence.steps %}hidden{% endif %}">
+      <h3 class="text-sm font-semibold text-slate-700 mb-3">New step</h3>
+      <form method="post" action="/sequences/{{ sequence.id }}/steps/new" class="space-y-3">
+        <div class="flex items-center gap-2 text-sm">
+          <label class="text-slate-600">Delay (days after previous step):</label>
+          <input type="number" name="delay_days" min="0" value="{% if sequence.steps %}3{% else %}0{% endif %}" class="input text-sm w-20 py-1" />
+          <span class="text-xs text-slate-400">{% if not sequence.steps %}(first step sends on enrollment){% endif %}</span>
         </div>
+        {{ placeholder_toolbar('new-step-subject', 'new-step-body') }}
         <div>
           <label class="block text-xs font-medium mb-1">Subject <span class="text-red-500">*</span></label>
-          <input name="subject" required class="input text-sm"
+          <input id="new-step-subject" name="subject" required class="input text-sm"
                  {% raw %}placeholder="Quick question, {{first_name}}"{% endraw %} />
         </div>
         <div>
           <label class="block text-xs font-medium mb-1">Message <span class="text-red-500">*</span></label>
-          <textarea name="body" required rows="6" class="textarea text-sm"
-                    {% raw %}placeholder="Hi {{first_name}},&#10;Use placeholders: {{name}}, {{company}}, {{title}}, {{email}}"{% endraw %}></textarea>
+          <textarea id="new-step-body" name="body" required rows="6" class="textarea text-sm"
+                    {% raw %}placeholder="Hi {{first_name}},&#10;&#10;Following up on my last note…"{% endraw %}></textarea>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm">Add Step</button>
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">Add Step</button>
+          <button type="button" onclick="document.getElementById('add-step-form').classList.add('hidden')" class="btn btn-secondary btn-sm">Cancel</button>
+        </div>
       </form>
-    </details>
+    </div>
   </div>
 
   <!-- Enrollments -->
@@ -138,4 +223,53 @@
   </div>
   {% endif %}
 </div>
+
+{% raw %}
+<script>
+  // Global drag-and-drop handler for placeholder chips on this page.
+  document.addEventListener('dragstart', function(e) {
+    const chip = e.target.closest('.placeholder-chip');
+    if (!chip) return;
+    e.dataTransfer.setData('text/plain', chip.dataset.token);
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+
+  function insertAtCursor(el, text) {
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + text + el.value.slice(end);
+    el.focus();
+    el.selectionStart = el.selectionEnd = start + text.length;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  document.addEventListener('dragover', function(e) {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  });
+  document.addEventListener('drop', function(e) {
+    const t = e.target;
+    if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA')) return;
+    const token = e.dataTransfer.getData('text/plain');
+    if (!token || !token.startsWith('{{')) return;
+    e.preventDefault();
+    insertAtCursor(t, token);
+  });
+
+  // Click-to-insert fallback
+  document.addEventListener('click', function(e) {
+    const chip = e.target.closest('.placeholder-chip');
+    if (!chip) return;
+    const subj = document.getElementById(chip.dataset.subjectId);
+    const body = document.getElementById(chip.dataset.bodyId);
+    const target = (document.activeElement === subj || document.activeElement === body)
+      ? document.activeElement
+      : (body || subj);
+    if (target) insertAtCursor(target, chip.dataset.token);
+  });
+</script>
+{% endraw %}
 {% endblock %}

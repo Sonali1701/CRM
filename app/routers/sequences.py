@@ -17,6 +17,10 @@ from app.templating import templates
 router = APIRouter()
 
 
+# ── Static / non-parameterised routes first ──────────────────────────────────
+# FastAPI matches routes in declaration order, so anything that could collide
+# with /{sid} (e.g. /enroll, /new, /enrollments/…) MUST be declared before it.
+
 @router.get("")
 def sequences_list(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
     rows = db.query(EmailSequence).order_by(EmailSequence.name).all()
@@ -47,6 +51,77 @@ def create_sequence(
     db.add(seq); db.commit()
     return flash(RedirectResponse(f"/sequences/{seq.id}", 303), "Sequence created. Add steps now.")
 
+
+@router.post("/enroll")
+def enroll_leads(
+    sequence_id: str = Form(...),
+    lead_ids: str = Form(""),
+    redirect_to: str = Form("/leads"),
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    sid = int(sequence_id) if sequence_id.strip().isdigit() else 0
+    seq = db.get(EmailSequence, sid)
+    if not seq or not seq.is_active:
+        raise HTTPException(400, "Sequence not found or inactive")
+
+    ids = [int(x) for x in lead_ids.split(",") if x.strip().isdigit()]
+    if not ids:
+        raise HTTPException(400, "No leads selected")
+
+    leads = db.query(Lead).filter(Lead.id.in_(ids)).all()
+    now = datetime.now(timezone.utc)
+    steps = sorted(seq.steps, key=lambda s: s.step_number)
+    if not steps:
+        raise HTTPException(400, "This sequence has no steps yet")
+
+    enrolled = 0
+    skipped = 0
+    for lead in leads:
+        if not lead.email:
+            skipped += 1
+            continue
+        existing = (
+            db.query(SequenceEnrollment)
+            .filter_by(sequence_id=sid, lead_id=lead.id)
+            .first()
+        )
+        if existing:
+            existing.status = "active"
+            existing.current_step = 0
+            existing.next_send_at = now + timedelta(days=steps[0].delay_days)
+            existing.last_step_at = None
+            existing.completed_at = None
+            existing.enrolled_by_id = user.id
+        else:
+            enr = SequenceEnrollment(
+                sequence_id=sid,
+                lead_id=lead.id,
+                enrolled_by_id=user.id,
+                next_send_at=now + timedelta(days=steps[0].delay_days),
+            )
+            db.add(enr)
+        enrolled += 1
+    db.commit()
+
+    msg = f"Enrolled {enrolled} contact(s) in '{seq.name}'."
+    if skipped:
+        msg += f" Skipped {skipped} with no email."
+    return flash(RedirectResponse(redirect_to, 303), msg)
+
+
+@router.post("/enrollments/{eid}/stop")
+def stop_enrollment(eid: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    enr = db.get(SequenceEnrollment, eid)
+    if not enr:
+        raise HTTPException(404)
+    enr.status = "stopped"
+    enr.next_send_at = None
+    db.commit()
+    return flash(RedirectResponse(f"/sequences/{enr.sequence_id}", 303), "Enrollment stopped.", "error")
+
+
+# ── Parameterised /{sid} routes (must come AFTER any static path that
+#    looks like an int-coercible segment) ─────────────────────────────────────
 
 @router.get("/{sid}")
 def sequence_detail(sid: int, request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
@@ -98,7 +173,7 @@ def add_step(
     body: str = Form(...),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
-    seq = _get(sid, db)
+    _get(sid, db)
     existing = db.query(SequenceStep).filter(SequenceStep.sequence_id == sid).count()
     step = SequenceStep(
         sequence_id=sid,
@@ -111,90 +186,65 @@ def add_step(
     return flash(RedirectResponse(f"/sequences/{sid}", 303), "Step added.")
 
 
+@router.post("/{sid}/steps/{step_id}")
+def update_step(
+    sid: int, step_id: int,
+    delay_days: str = Form("0"),
+    subject: str = Form(...),
+    body: str = Form(...),
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    step = db.get(SequenceStep, step_id)
+    if not step or step.sequence_id != sid:
+        raise HTTPException(404, "Step not found")
+    step.delay_days = int(delay_days) if delay_days.strip().isdigit() else 0
+    step.subject = subject
+    step.body = body
+    db.commit()
+    return flash(RedirectResponse(f"/sequences/{sid}", 303), f"Step {step.step_number} updated.")
+
+
+@router.post("/{sid}/steps/{step_id}/move")
+def move_step(
+    sid: int, step_id: int,
+    direction: str = Form(...),  # "up" or "down"
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    step = db.get(SequenceStep, step_id)
+    if not step or step.sequence_id != sid:
+        raise HTTPException(404)
+    steps = (
+        db.query(SequenceStep)
+        .filter(SequenceStep.sequence_id == sid)
+        .order_by(SequenceStep.step_number)
+        .all()
+    )
+    idx = next(i for i, s in enumerate(steps) if s.id == step_id)
+    swap_with = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap_with < len(steps):
+        steps[idx].step_number, steps[swap_with].step_number = steps[swap_with].step_number, steps[idx].step_number
+        db.commit()
+    return RedirectResponse(f"/sequences/{sid}", 303)
+
+
 @router.post("/{sid}/steps/{step_id}/delete")
 def delete_step(sid: int, step_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
     step = db.get(SequenceStep, step_id)
     if not step or step.sequence_id != sid:
         raise HTTPException(404)
     db.delete(step)
-    # Renumber remaining steps
-    remaining = db.query(SequenceStep).filter(SequenceStep.sequence_id == sid).order_by(SequenceStep.step_number).all()
+    db.flush()
+    # Renumber remaining steps so step_number stays contiguous
+    remaining = (
+        db.query(SequenceStep)
+        .filter(SequenceStep.sequence_id == sid)
+        .order_by(SequenceStep.step_number)
+        .all()
+    )
     for i, s in enumerate(remaining, start=1):
-        if s.id != step_id:
-            s.step_number = i
+        s.step_number = i
     db.commit()
     return flash(RedirectResponse(f"/sequences/{sid}", 303), "Step removed.", "error")
-
-
-# ── Enroll leads ─────────────────────────────────────────────────────────────
-
-@router.post("/enroll")
-def enroll_leads(
-    sequence_id: str = Form(...),
-    lead_ids: str = Form(""),
-    redirect_to: str = Form("/leads"),
-    user: User = Depends(require_user), db: Session = Depends(get_db),
-):
-    sid = int(sequence_id) if sequence_id.strip().isdigit() else 0
-    seq = db.get(EmailSequence, sid)
-    if not seq or not seq.is_active:
-        raise HTTPException(400, "Sequence not found or inactive")
-
-    ids = [int(x) for x in lead_ids.split(",") if x.strip().isdigit()]
-    if not ids:
-        raise HTTPException(400, "No leads selected")
-
-    leads = db.query(Lead).filter(Lead.id.in_(ids)).all()
-    now = datetime.now(timezone.utc)
-    steps = sorted(seq.steps, key=lambda s: s.step_number)
-    if not steps:
-        raise HTTPException(400, "This sequence has no steps yet")
-
-    enrolled = 0
-    skipped = 0
-    for lead in leads:
-        if not lead.email:
-            skipped += 1
-            continue
-        existing = (
-            db.query(SequenceEnrollment)
-            .filter_by(sequence_id=sid, lead_id=lead.id)
-            .first()
-        )
-        if existing:
-            # Re-activate if previously stopped/completed
-            existing.status = "active"
-            existing.current_step = 0
-            existing.next_send_at = now + timedelta(days=steps[0].delay_days)
-            existing.last_step_at = None
-            existing.completed_at = None
-            existing.enrolled_by_id = user.id
-        else:
-            enr = SequenceEnrollment(
-                sequence_id=sid,
-                lead_id=lead.id,
-                enrolled_by_id=user.id,
-                next_send_at=now + timedelta(days=steps[0].delay_days),
-            )
-            db.add(enr)
-        enrolled += 1
-    db.commit()
-
-    msg = f"Enrolled {enrolled} contact(s) in '{seq.name}'."
-    if skipped:
-        msg += f" Skipped {skipped} with no email."
-    return flash(RedirectResponse(redirect_to, 303), msg)
-
-
-@router.post("/enrollments/{eid}/stop")
-def stop_enrollment(eid: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
-    enr = db.get(SequenceEnrollment, eid)
-    if not enr:
-        raise HTTPException(404)
-    enr.status = "stopped"
-    enr.next_send_at = None
-    db.commit()
-    return flash(RedirectResponse(f"/sequences/{enr.sequence_id}", 303), "Enrollment stopped.", "error")
 
 
 def _get(sid: int, db: Session) -> EmailSequence:

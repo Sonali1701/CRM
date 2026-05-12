@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if template else 'New' }} Template – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/email-templates" class="text-slate-400 hover:text-slate-600 text-sm">← Templates</a>
+    <h1 class="text-xl font-semibold">{{ 'Edit Template' if template else 'New Template' }}</h1>
+  </div>
+
+  <div class="card p-6">
+    <form method="post" action="{{ '/email-templates/' + (template.id | string) if template else '/email-templates/new' }}" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Name <span class="text-red-500">*</span></label>
+        <input name="name" value="{{ template.name if template else '' }}" required class="input" placeholder="e.g. Cold Outreach Day 1" />
+        <p class="text-xs text-slate-400 mt-1">Internal name only — never shown to the recipient.</p>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+        <p class="text-xs font-medium text-slate-600 mb-2">Personalize with placeholders:</p>
+        <div class="flex flex-wrap gap-1.5 text-xs font-mono text-slate-700">
+          {% raw %}
+          {% for token in ['{{name}}', '{{first_name}}', '{{last_name}}', '{{company}}', '{{title}}', '{{email}}'] %}
+            <span class="px-2 py-0.5 rounded bg-white border border-slate-200">{{ token }}</span>
+          {% endfor %}
+          {% endraw %}
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Subject <span class="text-red-500">*</span></label>
+        <input name="subject" value="{{ template.subject if template else '' }}" required class="input"
+               {% raw %}placeholder="Following up with {{first_name}} at {{company}}"{% endraw %} />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Message <span class="text-red-500">*</span></label>
+        <textarea name="body" rows="10" required class="textarea"
+                  {% raw %}placeholder="Hi {{first_name}},&#10;&#10;Hope you're doing well at {{company}}…"{% endraw %}>{{ template.body if template else '' }}</textarea>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="is_shared" value="1" class="rounded" {% if not template or template.is_shared %}checked{% endif %} />
+          Share with the team (anyone can use this template)
+        </label>
+      </div>
+
+      <div class="flex gap-3 pt-1">
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if template else 'Create Template' }}</button>
+        <a href="/email-templates" class="btn btn-secondary">Cancel</a>
+        {% if template %}
+          <form method="post" action="/email-templates/{{ template.id }}/delete" class="ml-auto" onsubmit="return confirm('Delete this template?')">
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </form>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

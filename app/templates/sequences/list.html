@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Email Sequences – Radixsol CRM{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-slate-900">Email Sequences</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ sequences | length }} sequence{% if sequences | length != 1 %}s{% endif %} — automated multi-step outreach.</p>
+  </div>
+  <a href="/sequences/new" class="btn btn-primary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Sequence
+  </a>
+</div>
+
+<div class="card overflow-hidden">
+  {% if sequences %}
+    <table class="crm crm-compact w-full">
+      <thead>
+        <tr>
+          <th class="w-[28%]">Name</th>
+          <th class="w-[10%]">Steps</th>
+          <th class="w-[14%]">Enrollments</th>
+          <th class="w-[10%]">Status</th>
+          <th class="w-[15%]">Created By</th>
+          <th class="w-[8%]"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sequences %}
+        <tr>
+          <td>
+            <a href="/sequences/{{ s.id }}" class="font-medium text-slate-900 hover:text-brand-600">{{ s.name }}</a>
+            {% if s.description %}<p class="text-xs text-slate-400 mt-0.5 truncate" title="{{ s.description }}">{{ s.description }}</p>{% endif %}
+          </td>
+          <td class="text-slate-600">{{ s.steps | length }}</td>
+          <td class="text-slate-600">{{ s.enrollments | selectattr('status', 'equalto', 'active') | list | length }} active</td>
+          <td>
+            {% if s.is_active %}
+              <span class="badge bg-green-100 text-green-700">Active</span>
+            {% else %}
+              <span class="badge bg-slate-100 text-slate-500">Paused</span>
+            {% endif %}
+          </td>
+          <td class="text-sm text-slate-500">{{ s.created_by.full_name if s.created_by else '—' }}</td>
+          <td>
+            <a href="/sequences/{{ s.id }}" class="btn btn-ghost btn-sm">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="py-16 text-center">
+      <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <p class="text-slate-500 font-medium mb-1">No sequences yet</p>
+      <p class="text-slate-400 text-sm mb-4">Build a multi-step drip campaign — Day 0, Day 3, Day 7 — and enroll contacts in bulk.</p>
+      <a href="/sequences/new" class="btn btn-primary">Create Sequence</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

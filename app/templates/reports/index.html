@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Reports – Radixsol CRM{% endblock %}
+{% block content %}
+
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-slate-900">Reports</h1>
+  <p class="text-sm text-slate-500 mt-0.5">Pipeline health, win rate, rep performance and activity volume.</p>
+</div>
+
+<!-- KPI cards -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="card p-4">
+    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Open Pipeline</p>
+    <p class="text-2xl font-semibold text-slate-900 mt-1">{{ pipeline_value | currency }}</p>
+    <p class="text-xs text-slate-400 mt-0.5">{{ open_count }} open deal{{ '' if open_count == 1 else 's' }}</p>
+  </div>
+  <div class="card p-4">
+    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Won This Month</p>
+    <p class="text-2xl font-semibold text-green-600 mt-1">{{ won_value_month | currency }}</p>
+    <p class="text-xs text-slate-400 mt-0.5">{{ won_value_total | currency }} all-time</p>
+  </div>
+  <div class="card p-4">
+    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Win Rate</p>
+    <p class="text-2xl font-semibold text-slate-900 mt-1">{{ '%.0f' | format(win_rate) }}%</p>
+    <p class="text-xs text-slate-400 mt-0.5">{{ won_count }} won · {{ lost_count }} lost</p>
+  </div>
+  <div class="card p-4">
+    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Activities (30d)</p>
+    <p class="text-2xl font-semibold text-slate-900 mt-1">{{ activity_total_30d }}</p>
+    <p class="text-xs text-slate-400 mt-0.5">
+      {{ activity_by_type.get('email', 0) }} email · {{ activity_by_type.get('call', 0) }} call · {{ activity_by_type.get('meeting', 0) }} mtg
+    </p>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <!-- Pipeline by stage -->
+  <div class="card p-5">
+    <h2 class="font-semibold text-sm text-slate-700 mb-4">Pipeline by Stage</h2>
+    <div class="space-y-3">
+      {% for row in by_stage %}
+      <div>
+        <div class="flex items-center justify-between text-sm mb-1">
+          <span class="font-medium text-slate-700">{{ row.label }}</span>
+          <span class="text-slate-500"><span class="font-semibold text-slate-700">{{ row.value | currency }}</span> · {{ row.count }} deal{{ '' if row.count == 1 else 's' }}</span>
+        </div>
+        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full bg-brand-500" style="width: {{ row.pct }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Conversion funnel -->
+  <div class="card p-5">
+    <h2 class="font-semibold text-sm text-slate-700 mb-4">Lead → Won Conversion Funnel</h2>
+    {% set total = lead_counts.total_leads if lead_counts.total_leads > 0 else 1 %}
+    <div class="space-y-3">
+      <div>
+        <div class="flex justify-between text-sm mb-1"><span class="font-medium">All contacts</span><span class="text-slate-500">{{ lead_counts.total_leads }}</span></div>
+        <div class="h-7 bg-blue-100 rounded flex items-center justify-end pr-2 text-xs font-medium text-blue-700" style="width: 100%">100%</div>
+      </div>
+      <div>
+        <div class="flex justify-between text-sm mb-1"><span class="font-medium">Qualified</span><span class="text-slate-500">{{ lead_counts.qualified }}</span></div>
+        <div class="h-7 bg-indigo-200 rounded flex items-center justify-end pr-2 text-xs font-medium text-indigo-700"
+             style="width: {{ (lead_counts.qualified / total * 100) | round(0, 'floor') | int }}%">
+          {{ (lead_counts.qualified / total * 100) | round(0, 'floor') | int }}%
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between text-sm mb-1"><span class="font-medium">Converted to company</span><span class="text-slate-500">{{ lead_counts.converted }}</span></div>
+        <div class="h-7 bg-purple-200 rounded flex items-center justify-end pr-2 text-xs font-medium text-purple-700"
+             style="width: {{ (lead_counts.converted / total * 100) | round(0, 'floor') | int }}%">
+          {{ (lead_counts.converted / total * 100) | round(0, 'floor') | int }}%
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between text-sm mb-1"><span class="font-medium">Deals won</span><span class="text-slate-500">{{ lead_counts.won_deals }}</span></div>
+        <div class="h-7 bg-green-200 rounded flex items-center justify-end pr-2 text-xs font-medium text-green-700"
+             style="width: {{ (lead_counts.won_deals / total * 100) | round(0, 'floor') | int }}%">
+          {{ (lead_counts.won_deals / total * 100) | round(0, 'floor') | int }}%
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if rep_rows %}
+<div class="card p-5 mt-6">
+  <h2 class="font-semibold text-sm text-slate-700 mb-4">Rep Leaderboard</h2>
+  <table class="crm crm-compact w-full">
+    <thead>
+      <tr>
+        <th>Rep</th>
+        <th class="text-right">Open Pipeline</th>
+        <th class="text-right">Open #</th>
+        <th class="text-right">Won #</th>
+        <th class="text-right">Won Value</th>
+        <th class="text-right">Activities (30d)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rep_rows %}
+        <tr>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="avatar bg-brand-100 text-brand-700 text-xs">{{ r.rep.full_name[:2].upper() }}</div>
+              <span class="font-medium">{{ r.rep.full_name }}</span>
+            </div>
+          </td>
+          <td class="text-right font-semibold text-brand-600">{{ r.pipeline_value | currency }}</td>
+          <td class="text-right text-slate-600">{{ r.open_count }}</td>
+          <td class="text-right text-green-600 font-medium">{{ r.won_count }}</td>
+          <td class="text-right text-slate-600">{{ r.won_value | currency }}</td>
+          <td class="text-right text-slate-600">{{ r.activity_30d }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

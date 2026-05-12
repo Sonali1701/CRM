@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Email Templates – Radixsol CRM{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-slate-900">Email Templates</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ templates | length }} template{% if templates | length != 1 %}s{% endif %} — reusable subject + body for bulk mail.</p>
+  </div>
+  <a href="/email-templates/new" class="btn btn-primary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Template
+  </a>
+</div>
+
+<div class="card overflow-hidden">
+  {% if templates %}
+    <table class="crm crm-compact w-full">
+      <thead>
+        <tr>
+          <th class="w-[26%]">Name</th>
+          <th class="w-[42%]">Subject</th>
+          <th class="w-[12%]">Shared</th>
+          <th class="w-[12%]">Created By</th>
+          <th class="w-[8%]"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td>
+            <a href="/email-templates/{{ t.id }}" class="font-medium text-slate-900 hover:text-brand-600">{{ t.name }}</a>
+          </td>
+          <td class="text-slate-600 truncate" title="{{ t.subject }}">{{ t.subject }}</td>
+          <td>
+            {% if t.is_shared %}
+              <span class="badge bg-blue-50 text-blue-700">Shared</span>
+            {% else %}
+              <span class="badge bg-slate-100 text-slate-600">Private</span>
+            {% endif %}
+          </td>
+          <td class="text-sm text-slate-500">{{ t.created_by.full_name if t.created_by else '—' }}</td>
+          <td>
+            <a href="/email-templates/{{ t.id }}" class="btn btn-ghost btn-sm">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="py-16 text-center">
+      <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      <p class="text-slate-500 font-medium mb-1">No templates yet</p>
+      <p class="text-slate-400 text-sm mb-4">Save your first reusable email template — placeholders like {% raw %}{{name}}{% endraw %} and {% raw %}{{company}}{% endraw %} are personalized per recipient.</p>
+      <a href="/email-templates/new" class="btn btn-primary">Create Template</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -5,10 +5,21 @@
 <div x-data="{
   selected: [],
   showMail: false,
+  showEnroll: false,
   subject: '',
   body: '',
   cc: '',
   showPreview: false,
+  templates: {{ email_templates | map(attribute='id') | list | tojson if email_templates else '[]' }},
+  loadTemplate(id) {
+    if (!id) return;
+    const t = window.__email_templates__[id];
+    if (!t) return;
+    this.subject = t.subject;
+    this.body = t.body;
+    document.getElementById('mail-subject').value = t.subject;
+    document.getElementById('mail-body').value = t.body;
+  },
   toggle(c) {
     const i = this.selected.findIndex(s => s.id === c.id);
     if (i >= 0) this.selected.splice(i, 1);
@@ -123,6 +134,12 @@
     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
     Send Email
   </button>
+  {% if sequences %}
+  <button @click="showEnroll = true" class="btn btn-secondary btn-sm">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Enroll in Sequence
+  </button>
+  {% endif %}
   <button @click="clearAll()" class="btn btn-ghost btn-sm text-slate-500">Clear</button>
 </div>
 
@@ -199,6 +216,21 @@
            x-text="noEmailCount() + ' will be skipped — no email address.'"></p>
       </div>
 
+      {% if email_templates %}
+      <div>
+        <label class="block text-sm font-medium mb-1">Load Template <span class="text-slate-400 font-normal">(optional)</span></label>
+        <select onchange="this.dispatchEvent(new CustomEvent('load-tpl', {bubbles: true, detail: this.value})); this.value=''"
+                @load-tpl.window="loadTemplate($event.detail)"
+                class="select text-sm">
+          <option value="">— Pick a saved template —</option>
+          {% for t in email_templates %}
+            <option value="{{ t.id }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-slate-400 mt-1">Loading a template overwrites the Subject and Message below. <a href="/email-templates" class="text-brand-600 hover:underline">Manage templates</a></p>
+      </div>
+      {% endif %}
+
       <div>
         <label class="block text-sm font-medium mb-1">CC <span class="text-slate-400 font-normal">(optional)</span></label>
         <input name="cc" x-model="cc" class="input text-sm" placeholder="cc@example.com; cc2@example.com" />
@@ -265,5 +297,53 @@
   </div>
 </div>
 
+{% if sequences %}
+<!-- Enroll in Sequence Modal -->
+<div x-show="showEnroll" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+     @keydown.escape.window="showEnroll = false">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-md" @click.stop>
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div>
+        <h2 class="font-semibold text-slate-900">Enroll in Email Sequence</h2>
+        <p class="text-xs text-slate-500 mt-0.5" x-text="selected.length + ' contact(s) selected'"></p>
+      </div>
+      <button @click="showEnroll = false" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/sequences/enroll" class="p-5 space-y-4">
+      <input type="hidden" name="lead_ids" :value="leadIds()" />
+      <input type="hidden" name="redirect_to" value="/leads" />
+      <div>
+        <label class="block text-sm font-medium mb-1">Sequence <span class="text-red-500">*</span></label>
+        <select name="sequence_id" required class="select text-sm">
+          <option value="">— Choose a sequence —</option>
+          {% for s in sequences %}
+            <option value="{{ s.id }}">{{ s.name }} ({{ s.steps | length }} step{{ '' if s.steps | length == 1 else 's' }})</option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-slate-400 mt-1">First step fires immediately. Subsequent steps fire on schedule. <a href="/sequences" class="text-brand-600 hover:underline">Manage sequences</a></p>
+      </div>
+      <div class="flex gap-2 justify-end pt-1">
+        <button type="button" @click="showEnroll = false" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Enroll</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 </div><!-- end x-data wrapper -->
+
+{% if email_templates %}
+<script>
+  // Expose templates to JS so the bulk-mail modal can populate subject + body when one is chosen.
+  window.__email_templates__ = {
+    {% for t in email_templates %}
+      {{ t.id }}: { subject: {{ t.subject | tojson }}, body: {{ t.body | tojson }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+</script>
+{% endif %}
 {% endblock %}

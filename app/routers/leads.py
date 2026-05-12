@@ -48,10 +48,20 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
         )
     leads = q.order_by(Lead.created_at.desc()).all()
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
+    # Templates + sequences available to this user for the bulk-mail modal
+    from app.models import EmailTemplate, EmailSequence
+    email_templates = (
+        db.query(EmailTemplate)
+        .filter(or_(EmailTemplate.created_by_id == user.id, EmailTemplate.is_shared == True))
+        .order_by(EmailTemplate.name)
+        .all()
+    )
+    sequences = db.query(EmailSequence).filter(EmailSequence.is_active == True).order_by(EmailSequence.name).all()
     return templates.TemplateResponse(request, "leads/list.html", {
         "user": user, "flash": get_flash(request),
         "leads": leads, "reps": reps,
         "statuses": list(LeadStatus), "filter_status": status, "search": search,
+        "email_templates": email_templates, "sequences": sequences,
     })
 
 

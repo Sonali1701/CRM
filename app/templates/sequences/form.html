@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}{{ sequence.name if sequence else 'New Sequence' }} – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/sequences" class="text-slate-400 hover:text-slate-600 text-sm">← Sequences</a>
+    <h1 class="text-xl font-semibold">{{ sequence.name if sequence else 'New Sequence' }}</h1>
+    {% if sequence %}
+      {% if sequence.is_active %}<span class="badge bg-green-100 text-green-700">Active</span>
+      {% else %}<span class="badge bg-slate-100 text-slate-500">Paused</span>{% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Sequence settings -->
+  <div class="card p-6 mb-5">
+    <h2 class="font-semibold text-sm text-slate-700 mb-4">Settings</h2>
+    <form method="post" action="{{ '/sequences/' + (sequence.id | string) if sequence else '/sequences/new' }}" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Name <span class="text-red-500">*</span></label>
+        <input name="name" value="{{ sequence.name if sequence else '' }}" required class="input" placeholder="e.g. Cold Outreach 3-Touch" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Description</label>
+        <textarea name="description" rows="2" class="textarea" placeholder="What this sequence is for…">{{ sequence.description if sequence else '' }}</textarea>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="is_active" value="1" class="rounded" {% if not sequence or sequence.is_active %}checked{% endif %} />
+        Active (sequence runner will send to enrolled contacts)
+      </label>
+      <div class="flex gap-3 pt-1">
+        <button type="submit" class="btn btn-primary">{{ 'Save' if sequence else 'Create Sequence' }}</button>
+        <a href="/sequences" class="btn btn-secondary">Cancel</a>
+        {% if sequence %}
+          <form method="post" action="/sequences/{{ sequence.id }}/delete" class="ml-auto" onsubmit="return confirm('Delete this sequence and all its enrollments?')">
+            <button type="submit" class="btn btn-danger">Delete Sequence</button>
+          </form>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  {% if sequence %}
+  <!-- Steps -->
+  <div class="card p-6 mb-5">
+    <h2 class="font-semibold text-sm text-slate-700 mb-4">Steps ({{ sequence.steps | length }})</h2>
+    {% if sequence.steps %}
+      <div class="space-y-3 mb-5">
+        {% for step in sequence.steps %}
+        <div class="flex gap-3 p-3 border border-slate-200 rounded-lg">
+          <div class="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold flex-shrink-0">
+            {{ step.step_number }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2">
+              <p class="text-sm font-medium text-slate-900 truncate">{{ step.subject }}</p>
+              <span class="text-xs text-slate-500 flex-shrink-0">
+                {% if step.delay_days == 0 %}Immediately{% else %}+{{ step.delay_days }} day{{ '' if step.delay_days == 1 else 's' }}{% endif %}
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1 whitespace-pre-line">{{ step.body[:200] }}{% if step.body | length > 200 %}…{% endif %}</p>
+          </div>
+          <form method="post" action="/sequences/{{ sequence.id }}/steps/{{ step.id }}/delete" onsubmit="return confirm('Remove this step?')">
+            <button class="text-slate-300 hover:text-red-500 text-sm" title="Remove">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <details>
+      <summary class="text-sm text-brand-600 cursor-pointer hover:underline mb-3">+ Add a step</summary>
+      <form method="post" action="/sequences/{{ sequence.id }}/steps/new" class="space-y-3 mt-3">
+        <div>
+          <label class="block text-xs font-medium mb-1">Delay (days after previous step)</label>
+          <input type="number" name="delay_days" min="0" value="3" class="input text-sm w-32" />
+          <p class="text-xs text-slate-400 mt-1">First step: 0 = send immediately on enroll.</p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1">Subject <span class="text-red-500">*</span></label>
+          <input name="subject" required class="input text-sm"
+                 {% raw %}placeholder="Quick question, {{first_name}}"{% endraw %} />
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1">Message <span class="text-red-500">*</span></label>
+          <textarea name="body" required rows="6" class="textarea text-sm"
+                    {% raw %}placeholder="Hi {{first_name}},&#10;Use placeholders: {{name}}, {{company}}, {{title}}, {{email}}"{% endraw %}></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Add Step</button>
+      </form>
+    </details>
+  </div>
+
+  <!-- Enrollments -->
+  <div class="card p-6">
+    <h2 class="font-semibold text-sm text-slate-700 mb-4">Recent Enrollments ({{ enrollments | length }})</h2>
+    {% if enrollments %}
+      <table class="crm crm-compact w-full">
+        <thead>
+          <tr>
+            <th>Contact</th>
+            <th>Status</th>
+            <th>Step</th>
+            <th>Next send</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in enrollments %}
+          <tr>
+            <td>
+              {% if e.lead %}
+                <a href="/leads/{{ e.lead.id }}" class="text-slate-900 hover:text-brand-600 font-medium">{{ e.lead.name }}</a>
+                <span class="text-xs text-slate-400 block">{{ e.lead.email or '' }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              {% if e.status == 'active' %}<span class="badge bg-blue-100 text-blue-700">Active</span>
+              {% elif e.status == 'completed' %}<span class="badge bg-green-100 text-green-700">Done</span>
+              {% elif e.status == 'stopped' %}<span class="badge bg-slate-100 text-slate-500">Stopped</span>
+              {% else %}<span class="badge bg-amber-100 text-amber-700">{{ e.status }}</span>{% endif %}
+            </td>
+            <td class="text-sm text-slate-600">{{ e.current_step }} / {{ sequence.steps | length }}</td>
+            <td class="text-xs text-slate-500">{{ e.next_send_at | date if e.next_send_at else '—' }}</td>
+            <td>
+              {% if e.status == 'active' %}
+                <form method="post" action="/sequences/enrollments/{{ e.id }}/stop">
+                  <button class="text-xs text-red-500 hover:underline">Stop</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-sm text-slate-400">No enrollments yet. Go to <a href="/leads" class="text-brand-600 hover:underline">Contacts</a>, select some, and use "Enroll in Sequence".</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

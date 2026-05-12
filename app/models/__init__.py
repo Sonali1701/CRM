@@ -5,6 +5,8 @@ from app.models.deal import Deal, DealStage
 from app.models.activity import Activity, ActivityType
 from app.models.login_event import LoginEvent
 from app.models.mail import MailAccount, EmailMessage
+from app.models.email_template import EmailTemplate
+from app.models.sequence import EmailSequence, SequenceStep, SequenceEnrollment
 
 __all__ = [
     "User",
@@ -21,4 +23,8 @@ __all__ = [
     "LoginEvent",
     "MailAccount",
     "EmailMessage",
+    "EmailTemplate",
+    "EmailSequence",
+    "SequenceStep",
+    "SequenceEnrollment",
 ]

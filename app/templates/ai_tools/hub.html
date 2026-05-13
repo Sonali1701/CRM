@@ -4,17 +4,16 @@
 
 <div class="mb-6">
   <h1 class="text-xl font-semibold text-slate-900">AI Tools</h1>
-  <p class="text-sm text-slate-500 mt-0.5">Gemini-powered helpers for staffing sales.</p>
+  <p class="text-sm text-slate-500 mt-0.5">AI helpers for staffing sales — Gemini primary, Groq fallback on quota.</p>
 </div>
 
 {% if not ai_enabled %}
 <div class="card p-4 mb-6 bg-amber-50 border-amber-200">
-  <p class="text-sm text-amber-800">
-    <b>Gemini API key not set.</b> Get a free key at
-    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="underline">aistudio.google.com</a>
-    and set <code class="px-1 bg-amber-100 rounded text-xs">GEMINI_API_KEY</code> in env vars.
-    No card required, 1500 req/day on the free tier.
-  </p>
+  <p class="text-sm text-amber-800 mb-2"><b>No AI provider configured yet.</b> Pick either or both — calls auto-fall-back from Gemini to Groq on rate-limit so configuring both gives you ~16,000 req/day combined.</p>
+  <ul class="text-sm text-amber-800 space-y-1 ml-4 list-disc">
+    <li><b>Gemini</b> — get a key at <a href="https://aistudio.google.com/app/apikey" target="_blank" class="underline">aistudio.google.com</a>, set <code class="px-1 bg-amber-100 rounded text-xs">GEMINI_API_KEY</code>. 1500 req/day, native JSON schema.</li>
+    <li><b>Groq</b> — get a key at <a href="https://console.groq.com/keys" target="_blank" class="underline">console.groq.com</a>, set <code class="px-1 bg-amber-100 rounded text-xs">GROQ_API_KEY</code>. ~14,400 req/day on Llama 3.3 70B, very fast.</li>
+  </ul>
 </div>
 {% endif %}
 

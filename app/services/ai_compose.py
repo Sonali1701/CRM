@@ -1,11 +1,14 @@
-"""AI email composer using Google Gemini (free tier).
+"""AI composer with automatic provider fallback.
 
-Get a key at https://aistudio.google.com → 'Get API key'. Set GEMINI_API_KEY
-in env. Free tier: 15 RPM / 1500 RPD on gemini-2.0-flash, no card needed.
+Two free providers are supported. Configure one OR both — calls go to
+Gemini first; on rate-limit / quota errors the chain falls back to Groq.
 
-The model is asked to return JSON with subject + body, and to include
-placeholders like {{first_name}} / {{company}} so the result still
-personalizes per recipient when sent through the existing bulk-send flow.
+  - Gemini    (https://aistudio.google.com/app/apikey)   15 RPM, 1500 RPD
+  - Groq      (https://console.groq.com/keys)            ~14,400 RPD, very fast
+
+All structured outputs (email templates, MOMs, JD extracts, deal next-step
+suggestions) go through the same _structured_call() entrypoint so they
+share the same provider fallback chain.
 """
 
 from __future__ import annotations
@@ -22,6 +25,10 @@ from app.config import get_settings
 
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# Error fragments that mean "this provider is rate-limited; try the next one"
+_QUOTA_ERROR_HINTS = ("429", "rate limit", "rate_limit", "quota", "exhausted", "exceeded", "resource_exhausted")
 
 SYSTEM_PROMPT = """You are a sales-email assistant for a B2B CRM. The user will describe what they want; you return ONE email template (subject + body) that the CRM will personalize per recipient.
 
@@ -37,6 +44,21 @@ Rules:
 
 def is_gemini_configured() -> bool:
     return bool(get_settings().gemini_api_key)
+
+
+def is_groq_configured() -> bool:
+    return bool(get_settings().groq_api_key)
+
+
+def is_ai_configured() -> bool:
+    """True if at least one provider is configured."""
+    s = get_settings()
+    return bool(s.gemini_api_key or s.groq_api_key)
+
+
+def _is_quota_error(err: Exception) -> bool:
+    msg = str(err).lower()
+    return any(h in msg for h in _QUOTA_ERROR_HINTS)
 
 
 async def fetch_company_context(website: str) -> str:
@@ -81,96 +103,16 @@ def _parse_json_strict(text: str) -> dict[str, Any]:
     return json.loads(text)
 
 
-async def generate_email(
-    prompt: str,
-    contact: dict[str, Any],
-    web_context: str = "",
-    user_name: str = "",
-) -> dict[str, str]:
-    """Call Gemini and return {"subject": ..., "body": ...}.
-
-    Raises RuntimeError if the API call fails or the response is unparseable
-    — the caller should catch and surface to the user."""
+async def _call_gemini(system: str, user: str, schema: dict, temperature: float = 0.3) -> dict:
+    """Single Gemini call with native structured-output. Raises RuntimeError on any failure."""
     settings = get_settings()
     if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set")
-
-    user_message_parts = [f"User's request: {prompt.strip()}"]
-    contact_lines = []
-    for k in ("name", "first_name", "company", "title", "email"):
-        v = (contact or {}).get(k)
-        if v:
-            contact_lines.append(f"  {k}: {v}")
-    if contact_lines:
-        user_message_parts.append("Sample contact:\n" + "\n".join(contact_lines))
-    if web_context:
-        user_message_parts.append(web_context)
-    if user_name:
-        user_message_parts.append(f"Sender's name: {user_name}")
-
-    user_message = "\n\n".join(user_message_parts)
-
-    payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"role": "user", "parts": [{"text": user_message}]}],
-        "generationConfig": {
-            "temperature": 0.7,
-            "responseMimeType": "application/json",
-            "responseSchema": {
-                "type": "object",
-                "properties": {
-                    "subject": {"type": "string"},
-                    "body": {"type": "string"},
-                },
-                "required": ["subject", "body"],
-            },
-        },
-    }
-
-    url = GEMINI_URL.format(model=settings.gemini_model)
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.post(
-            url,
-            params={"key": settings.gemini_api_key},
-            json=payload,
-            headers={"Content-Type": "application/json"},
-        )
-        if resp.status_code >= 400:
-            try:
-                err = resp.json().get("error", {}).get("message", resp.text)
-            except Exception:
-                err = resp.text
-            raise RuntimeError(f"Gemini API error ({resp.status_code}): {err}")
-        data = resp.json()
-
-    try:
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError, TypeError) as e:
-        raise RuntimeError(f"Unexpected Gemini response shape: {e}")
-
-    try:
-        parsed = _parse_json_strict(text)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Could not parse model response as JSON: {e}")
-
-    subject = str(parsed.get("subject", "")).strip()
-    body = str(parsed.get("body", "")).strip()
-    if not subject or not body:
-        raise RuntimeError("Model returned empty subject or body")
-    return {"subject": subject, "body": body}
-
-
-async def _gemini_json(system: str, user: str, schema: dict) -> dict:
-    """Generic Gemini structured-output call. Caller supplies system prompt,
-    user message, and a JSON schema; returns parsed JSON."""
-    settings = get_settings()
-    if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set")
+        raise RuntimeError("Gemini not configured")
     payload = {
         "system_instruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
         "generationConfig": {
-            "temperature": 0.3,
+            "temperature": temperature,
             "responseMimeType": "application/json",
             "responseSchema": schema,
         },
@@ -197,7 +139,128 @@ async def _gemini_json(system: str, user: str, schema: dict) -> dict:
     try:
         return _parse_json_strict(text)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Could not parse model response as JSON: {e}")
+        raise RuntimeError(f"Could not parse Gemini response: {e}")
+
+
+async def _call_groq(system: str, user: str, schema: dict, temperature: float = 0.3) -> dict:
+    """Single Groq call. Groq's OpenAI-compatible API only supports json_object mode
+    (not full JSON Schema), so we inline the schema in the system prompt to coach
+    the model into the right shape."""
+    settings = get_settings()
+    if not settings.groq_api_key:
+        raise RuntimeError("Groq not configured")
+
+    schema_hint = (
+        "Return ONLY a JSON object that matches this schema. No prose, no markdown fences:\n"
+        + json.dumps(schema, indent=2)
+    )
+    payload = {
+        "model": settings.groq_model,
+        "messages": [
+            {"role": "system", "content": f"{system}\n\n{schema_hint}"},
+            {"role": "user", "content": user},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": temperature,
+    }
+    async with httpx.AsyncClient(timeout=25) as client:
+        resp = await client.post(
+            GROQ_URL,
+            headers={
+                "Authorization": f"Bearer {settings.groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        if resp.status_code >= 400:
+            try:
+                err = resp.json().get("error", {}).get("message", resp.text)
+            except Exception:
+                err = resp.text
+            raise RuntimeError(f"Groq API error ({resp.status_code}): {err}")
+        data = resp.json()
+    try:
+        text = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as e:
+        raise RuntimeError(f"Unexpected Groq response: {e}")
+    try:
+        return _parse_json_strict(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Could not parse Groq response: {e}")
+
+
+async def _structured_call(system: str, user: str, schema: dict, temperature: float = 0.3) -> dict:
+    """Unified provider chain: Gemini → Groq on quota errors. Caller doesn't care
+    which one served the request; they just get parsed JSON."""
+    settings = get_settings()
+    last_err: Exception | None = None
+
+    if settings.gemini_api_key:
+        try:
+            return await _call_gemini(system, user, schema, temperature)
+        except Exception as e:
+            last_err = e
+            # Only fall back on quota / rate-limit errors. Other errors (schema
+            # mismatch, model down, etc.) are surfaced immediately unless Groq
+            # is configured too — in which case we always try it as backup.
+            if not _is_quota_error(e) and not settings.groq_api_key:
+                raise
+
+    if settings.groq_api_key:
+        try:
+            return await _call_groq(system, user, schema, temperature)
+        except Exception as e:
+            last_err = e
+
+    if last_err:
+        raise last_err
+    raise RuntimeError(
+        "No AI provider configured. Set GEMINI_API_KEY (aistudio.google.com) "
+        "and/or GROQ_API_KEY (console.groq.com) — both have free tiers."
+    )
+
+
+async def generate_email(
+    prompt: str,
+    contact: dict[str, Any],
+    web_context: str = "",
+    user_name: str = "",
+) -> dict[str, str]:
+    """Generate a personalized email template. Returns {"subject", "body"}."""
+    if not is_ai_configured():
+        raise RuntimeError("No AI provider configured")
+
+    user_message_parts = [f"User's request: {prompt.strip()}"]
+    contact_lines = []
+    for k in ("name", "first_name", "company", "title", "email"):
+        v = (contact or {}).get(k)
+        if v:
+            contact_lines.append(f"  {k}: {v}")
+    if contact_lines:
+        user_message_parts.append("Sample contact:\n" + "\n".join(contact_lines))
+    if web_context:
+        user_message_parts.append(web_context)
+    if user_name:
+        user_message_parts.append(f"Sender's name: {user_name}")
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "subject": {"type": "string"},
+            "body": {"type": "string"},
+        },
+        "required": ["subject", "body"],
+    }
+    parsed = await _structured_call(
+        SYSTEM_PROMPT, "\n\n".join(user_message_parts), schema, temperature=0.7,
+    )
+    subject = str(parsed.get("subject", "")).strip()
+    body = str(parsed.get("body", "")).strip()
+    if not subject or not body:
+        raise RuntimeError("Model returned empty subject or body")
+    return {"subject": subject, "body": body}
+
+
 
 
 # ── Deal next-step recommendation ────────────────────────────────────────────
@@ -225,7 +288,7 @@ NEXT_STEP_SCHEMA = {
 
 async def suggest_next_step(deal_context: str) -> dict:
     """deal_context is a free-text summary of the deal's state — caller assembles it."""
-    return await _gemini_json(NEXT_STEP_SYSTEM, deal_context, NEXT_STEP_SCHEMA)
+    return await _structured_call(NEXT_STEP_SYSTEM, deal_context, NEXT_STEP_SCHEMA)
 
 
 # ── Meeting summarizer / MOM generator ───────────────────────────────────────
@@ -277,7 +340,7 @@ MEETING_SCHEMA = {
 
 
 async def summarize_meeting(notes: str) -> dict:
-    return await _gemini_json(MEETING_SYSTEM, f"Meeting notes:\n\n{notes}", MEETING_SCHEMA)
+    return await _structured_call(MEETING_SYSTEM, f"Meeting notes:\n\n{notes}", MEETING_SCHEMA)
 
 
 # ── JD / Requirement analyzer ────────────────────────────────────────────────
@@ -318,4 +381,4 @@ JD_SCHEMA = {
 
 
 async def analyze_jd(jd_text: str) -> dict:
-    return await _gemini_json(JD_SYSTEM, f"Job description:\n\n{jd_text}", JD_SCHEMA)
+    return await _structured_call(JD_SYSTEM, f"Job description:\n\n{jd_text}", JD_SCHEMA)

@@ -24,9 +24,12 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""  # defaults to smtp_user if blank
     smtp_use_tls: bool = True  # True = STARTTLS on 587; False = SSL on 465
-    # AI email composer (free tier — get a key at aistudio.google.com)
-    gemini_api_key: str = ""
+    # AI providers (any combination — primary is Gemini, fallback is Groq).
+    # Both have generous free tiers; no credit card required for either.
+    gemini_api_key: str = ""        # https://aistudio.google.com/app/apikey
     gemini_model: str = "gemini-2.0-flash"
+    groq_api_key: str = ""          # https://console.groq.com/keys
+    groq_model: str = "llama-3.3-70b-versatile"
     # Default admin: created on startup if missing. Override via env vars.
     admin_email: str = "admin@radixsol.com"
     admin_password: str = "admin123"

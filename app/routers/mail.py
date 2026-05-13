@@ -25,7 +25,7 @@ from app.services.mail_sync import (
     send_mail,
 )
 from app.services.smtp_mail import is_smtp_configured, smtp_send
-from app.services.ai_compose import is_gemini_configured, generate_email, fetch_company_context
+from app.services.ai_compose import is_ai_configured, generate_email, fetch_company_context
 from app.templating import templates
 
 
@@ -351,10 +351,11 @@ async def mail_generate(
     model so the generated text matches the recipient style; the result still
     contains {{first_name}}/{{company}} placeholders that the bulk-send flow
     personalizes per recipient at send time."""
-    if not is_gemini_configured():
+    if not is_ai_configured():
         raise HTTPException(
             400,
-            "AI compose is not configured. Set GEMINI_API_KEY in env (free key at aistudio.google.com).",
+            "AI compose needs a free provider key. Set GEMINI_API_KEY "
+            "(aistudio.google.com) and/or GROQ_API_KEY (console.groq.com) in env.",
         )
     if not prompt.strip():
         raise HTTPException(400, "Prompt is empty")

@@ -21,7 +21,7 @@ from app.flash import flash, get_flash
 from app.models import User, Lead, Client, Activity
 from app.models.activity import ActivityType
 from app.services.ai_compose import (
-    is_gemini_configured, summarize_meeting, analyze_jd,
+    is_ai_configured, summarize_meeting, analyze_jd,
 )
 from app.templating import templates
 
@@ -30,11 +30,12 @@ router = APIRouter()
 
 
 def _require_ai():
-    if not is_gemini_configured():
+    if not is_ai_configured():
         raise HTTPException(
             400,
-            "AI tools require a Gemini API key. Set GEMINI_API_KEY in env "
-            "(free key at aistudio.google.com).",
+            "AI tools need at least one provider key. Set GEMINI_API_KEY "
+            "(aistudio.google.com) and/or GROQ_API_KEY (console.groq.com) in env. "
+            "Both have free tiers; no credit card needed.",
         )
 
 
@@ -42,7 +43,7 @@ def _require_ai():
 def ai_tools_hub(request: Request, user: User = Depends(require_user)):
     return templates.TemplateResponse(request, "ai_tools/hub.html", {
         "user": user, "flash": get_flash(request),
-        "ai_enabled": is_gemini_configured(),
+        "ai_enabled": is_ai_configured(),
     })
 
 
@@ -61,7 +62,7 @@ def meeting_summary_page(request: Request, user: User = Depends(require_user), d
     clients = db.query(Client).order_by(Client.name).limit(200).all()
     return templates.TemplateResponse(request, "ai_tools/meeting.html", {
         "user": user, "flash": get_flash(request),
-        "ai_enabled": is_gemini_configured(),
+        "ai_enabled": is_ai_configured(),
         "leads": leads, "clients": clients,
         "result": None, "notes": "",
     })
@@ -164,7 +165,7 @@ def _format_mom_text(r: dict) -> str:
 def jd_page(request: Request, user: User = Depends(require_user)):
     return templates.TemplateResponse(request, "ai_tools/jd.html", {
         "user": user, "flash": get_flash(request),
-        "ai_enabled": is_gemini_configured(),
+        "ai_enabled": is_ai_configured(),
         "result": None, "jd_text": "",
     })
 

@@ -131,9 +131,9 @@ def deal_delete(deal_id: int, user: User = Depends(require_user), db: Session = 
 @router.post("/{deal_id}/suggest-next-step")
 async def deal_suggest_next_step(deal_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
     """Returns JSON {action, reason, urgency} suggested by Gemini based on deal state."""
-    from app.services.ai_compose import is_gemini_configured, suggest_next_step
-    if not is_gemini_configured():
-        raise HTTPException(400, "AI is not configured. Set GEMINI_API_KEY in env.")
+    from app.services.ai_compose import is_ai_configured, suggest_next_step
+    if not is_ai_configured():
+        raise HTTPException(400, "AI is not configured. Set GEMINI_API_KEY and/or GROQ_API_KEY in env.")
 
     deal = _get_deal(deal_id, user, db)
 

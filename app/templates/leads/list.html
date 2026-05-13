@@ -10,6 +10,10 @@
   body: '',
   cc: '',
   showPreview: false,
+  aiPrompt: '',
+  aiUseWeb: false,
+  aiBusy: false,
+  aiError: '',
   templates: {{ email_templates | map(attribute='id') | list | tojson if email_templates else '[]' }},
   loadTemplate(id) {
     if (!id) return;
@@ -19,6 +23,30 @@
     this.body = t.body;
     document.getElementById('mail-subject').value = t.subject;
     document.getElementById('mail-body').value = t.body;
+  },
+  async generateWithAI() {
+    if (!this.aiPrompt.trim()) { this.aiError = 'Type what you want the email to say.'; return; }
+    this.aiBusy = true; this.aiError = '';
+    try {
+      const form = new FormData();
+      form.append('prompt', this.aiPrompt);
+      if (this.selected.length > 0) form.append('lead_id', this.selected[0].id);
+      if (this.aiUseWeb) form.append('use_web', '1');
+      const resp = await fetch('/mail/generate', { method: 'POST', body: form });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || ('HTTP ' + resp.status));
+      }
+      const data = await resp.json();
+      this.subject = data.subject;
+      this.body = data.body;
+      document.getElementById('mail-subject').value = data.subject;
+      document.getElementById('mail-body').value = data.body;
+    } catch (e) {
+      this.aiError = String(e.message || e);
+    } finally {
+      this.aiBusy = false;
+    }
   },
   toggle(c) {
     const i = this.selected.findIndex(s => s.id === c.id);
@@ -215,6 +243,35 @@
         <p x-show="noEmailCount() > 0" class="text-xs text-amber-600 mt-1"
            x-text="noEmailCount() + ' will be skipped — no email address.'"></p>
       </div>
+
+      {% if ai_enabled %}
+      <!-- AI Compose -->
+      <details class="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-indigo-900 flex items-center gap-2 select-none">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+          Generate with AI
+          <span class="text-xs text-indigo-500 font-normal ml-1">— write a prompt, get a personalized template</span>
+        </summary>
+        <div class="px-3 pb-3 space-y-2">
+          <textarea x-model="aiPrompt" rows="3" class="textarea text-sm"
+                    placeholder="e.g. Write a 3-line cold outreach about our integration platform — mention their role as Head of Engineering and reference our pricing flexibility."></textarea>
+          <label class="flex items-center gap-2 text-xs text-slate-600">
+            <input type="checkbox" x-model="aiUseWeb" class="rounded" />
+            Also fetch the first contact's company website for extra context (slower, more relevant)
+          </label>
+          <div class="flex items-center gap-2">
+            <button type="button" @click="generateWithAI()" :disabled="aiBusy"
+                    class="btn btn-primary btn-sm disabled:opacity-50">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+              <span x-text="aiBusy ? 'Generating…' : 'Generate'"></span>
+            </button>
+            <span x-show="aiBusy" class="text-xs text-indigo-500">Calling Gemini, usually 2–4s…</span>
+            <span x-show="aiError" x-text="aiError" class="text-xs text-red-600"></span>
+          </div>
+          <p class="text-xs text-slate-500">Output goes straight into Subject and Message below — you can edit before sending.</p>
+        </div>
+      </details>
+      {% endif %}
 
       {% if email_templates %}
       <div>

@@ -57,11 +57,13 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
         .all()
     )
     sequences = db.query(EmailSequence).filter(EmailSequence.is_active == True).order_by(EmailSequence.name).all()
+    from app.services.ai_compose import is_gemini_configured
     return templates.TemplateResponse(request, "leads/list.html", {
         "user": user, "flash": get_flash(request),
         "leads": leads, "reps": reps,
         "statuses": list(LeadStatus), "filter_status": status, "search": search,
         "email_templates": email_templates, "sequences": sequences,
+        "ai_enabled": is_gemini_configured(),
     })
 
 

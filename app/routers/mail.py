@@ -25,6 +25,7 @@ from app.services.mail_sync import (
     send_mail,
 )
 from app.services.smtp_mail import is_smtp_configured, smtp_send
+from app.services.ai_compose import is_gemini_configured, generate_email, fetch_company_context
 from app.templating import templates
 
 
@@ -333,6 +334,60 @@ async def mail_bulk_send(
         if len(skipped) > 3:
             msg += f" …+{len(skipped) - 3} more"
     return flash(RedirectResponse(redirect_to, 303), msg, "success" if sent else "error")
+
+
+@router.post("/generate")
+async def mail_generate(
+    request: Request,
+    prompt: str = Form(...),
+    lead_id: str = Form(""),
+    use_web: str = Form(""),
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """Generate a subject + body email template from a natural-language prompt.
+
+    Uses one sample contact's data (the first selected lead) as context for the
+    model so the generated text matches the recipient style; the result still
+    contains {{first_name}}/{{company}} placeholders that the bulk-send flow
+    personalizes per recipient at send time."""
+    if not is_gemini_configured():
+        raise HTTPException(
+            400,
+            "AI compose is not configured. Set GEMINI_API_KEY in env (free key at aistudio.google.com).",
+        )
+    if not prompt.strip():
+        raise HTTPException(400, "Prompt is empty")
+
+    contact: dict = {}
+    web_context = ""
+
+    lid = int(lead_id) if lead_id.strip().isdigit() else None
+    if lid:
+        lead = db.get(Lead, lid)
+        if lead and (user.is_manager or lead.owner_id == user.id):
+            contact = {
+                "name": lead.name,
+                "first_name": lead.first_name,
+                "company": lead.company or "",
+                "title": lead.job_title or "",
+                "email": lead.email or "",
+            }
+            if use_web and lead.client_id:
+                client = db.get(Client, lead.client_id)
+                if client and client.website:
+                    web_context = await fetch_company_context(client.website)
+
+    try:
+        result = await generate_email(prompt, contact, web_context, user_name=user.full_name)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+
+    return {
+        "subject": result["subject"],
+        "body": result["body"],
+        "web_context_used": bool(web_context),
+    }
 
 
 @router.post("/sync")

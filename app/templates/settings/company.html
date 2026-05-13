@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Company Profile – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5">
+    <h1 class="text-xl font-semibold text-slate-900">Company Profile</h1>
+    <p class="text-sm text-slate-500 mt-0.5">This is injected into every AI prompt as "about us" context so the model writes in your voice and references your real services. Edit anytime — changes apply immediately to all AI features.</p>
+  </div>
+
+  <div class="card p-4 mb-5 bg-indigo-50 border-indigo-200 text-sm text-indigo-900">
+    <p class="font-medium mb-1">How this is used</p>
+    <ul class="text-sm space-y-0.5 ml-4 list-disc text-indigo-800">
+      <li><b>Email writer</b> — sends as your company, in your tone, with your real services and signature</li>
+      <li><b>Meeting summarizer</b> — classifies requirements relative to what you actually sell</li>
+      <li><b>Deal next-step</b> — suggests actions grounded in your service catalogue</li>
+      <li><b>JD analyzer</b> — same — knows which skills/services you can fulfil</li>
+    </ul>
+  </div>
+
+  <form method="post" action="/settings/company" class="card p-6 space-y-5">
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Company Name <span class="text-red-500">*</span></label>
+        <input name="name" value="{{ profile.name }}" required class="input" placeholder="Radixsol" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Website</label>
+        <input name="website" value="{{ profile.website }}" class="input" placeholder="https://radixsol.com" />
+        <p class="text-xs text-slate-400 mt-1">When you change this URL the homepage is auto-fetched and cached as AI context.</p>
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-medium mb-1">Tagline / one-liner</label>
+        <input name="tagline" value="{{ profile.tagline }}" class="input" placeholder="e.g. Enterprise staffing partner for healthcare and tech" />
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">What we do <span class="text-slate-400 font-normal">(2-4 sentences)</span></label>
+      <textarea name="description" rows="3" class="textarea" placeholder="One paragraph summary of the business — who you serve, what you deliver, what makes you different.">{{ profile.description }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Services / offerings</label>
+      <textarea name="services" rows="5" class="textarea" placeholder="- Contract staffing (IT, healthcare, engineering)&#10;- Permanent placements&#10;- GCC build-out and shared services&#10;- Managed services for hiring at scale">{{ profile.services }}</textarea>
+      <p class="text-xs text-slate-400 mt-1">A bulleted list works well. The AI uses this to never invent services you don't actually offer.</p>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Brand voice / tone guidelines</label>
+      <textarea name="tone_guidelines" rows="4" class="textarea" placeholder="Direct, concise, and never overpromising. Avoid superlatives. Always lead with the client's problem, not our capability. Use Indian English spelling. No emojis.">{{ profile.tone_guidelines }}</textarea>
+      <p class="text-xs text-slate-400 mt-1">Plain-language house style. Don'ts are often more useful than dos.</p>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1">Default email signature</label>
+      <textarea name="signature" rows="4" class="textarea font-mono text-xs" placeholder="Best,&#10;[Your name]&#10;Radixsol · https://radixsol.com">{{ profile.signature }}</textarea>
+      <p class="text-xs text-slate-400 mt-1">The AI ends every generated email with this. Use [Your name] as a placeholder — it stays literal so the sender's actual name is added later.</p>
+    </div>
+
+    {% if profile.website_excerpt %}
+    <details class="bg-slate-50 border border-slate-200 rounded-lg">
+      <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 select-none">
+        Cached website excerpt — {{ profile.website_excerpt | length }} chars
+        {% if profile.website_fetched_at %}<span class="text-xs text-slate-400 ml-2">fetched {{ profile.website_fetched_at | date }}</span>{% endif %}
+      </summary>
+      <div class="px-3 pb-3">
+        <pre class="text-xs text-slate-600 whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">{{ profile.website_excerpt }}</pre>
+      </div>
+    </details>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-2 pt-2">
+      <button type="submit" class="btn btn-primary">Save Profile</button>
+      <button type="submit" name="refetch" value="1" class="btn btn-secondary">Save &amp; Refetch Website</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -82,7 +82,7 @@ async def meeting_summary_post(
         raise HTTPException(400, "Paste some meeting notes first")
 
     try:
-        result = await summarize_meeting(notes)
+        result = await summarize_meeting(notes, db=db)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
 
@@ -175,12 +175,13 @@ async def jd_post(
     request: Request,
     jd_text: str = Form(...),
     user: User = Depends(require_user),
+    db: Session = Depends(get_db),
 ):
     _require_ai()
     if not jd_text.strip():
         raise HTTPException(400, "Paste a JD first")
     try:
-        result = await analyze_jd(jd_text)
+        result = await analyze_jd(jd_text, db=db)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     return templates.TemplateResponse(request, "ai_tools/jd.html", {

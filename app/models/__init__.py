@@ -7,6 +7,7 @@ from app.models.login_event import LoginEvent
 from app.models.mail import MailAccount, EmailMessage
 from app.models.email_template import EmailTemplate
 from app.models.sequence import EmailSequence, SequenceStep, SequenceEnrollment
+from app.models.company_profile import CompanyProfile
 
 __all__ = [
     "User",
@@ -27,4 +28,5 @@ __all__ = [
     "EmailSequence",
     "SequenceStep",
     "SequenceEnrollment",
+    "CompanyProfile",
 ]

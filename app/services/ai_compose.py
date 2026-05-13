@@ -32,12 +32,17 @@ _QUOTA_ERROR_HINTS = ("429", "rate limit", "rate_limit", "quota", "exhausted", "
 
 SYSTEM_PROMPT = """You are a sales-email assistant for a B2B CRM. The user will describe what they want; you return ONE email template (subject + body) that the CRM will personalize per recipient.
 
+CRITICAL: Follow the user's prompt precisely. If they ask for a 3-line email, write 3 lines. If they specify a hook or angle, use it. Your job is to execute their intent, not invent your own.
+
 Rules:
 - Use these placeholders in the output where appropriate — they are replaced per contact at send time: {{first_name}}, {{name}}, {{company}}, {{title}}, {{email}}
-- Keep the email concise: 3-6 short sentences in the body.
+- Keep it concise: typically 3-6 short sentences unless the user asks otherwise.
 - Friendly, direct, professional. No exclamation marks, no emojis, no "I hope this finds you well", no overselling.
 - Subject should be under 60 characters and look like a real human wrote it.
-- Sign off with "Best," then a new line then "[Your name]" — the CRM doesn't currently substitute the sender name, so leave it as literal "[Your name]".
+- If an email signature is provided in the "About us" block, end with that exact signature. Otherwise sign off with "Best," then a new line then the sender's name if given, else "[Your name]".
+- If "About us" context is provided, write as that company and accurately reference its real services.
+- If "Recent saved templates" are provided, match their voice and rhythm — do not copy phrasing.
+- If "Previous emails already sent to this recipient" are provided, do NOT repeat the same opening or pitch — build on prior context.
 - Return ONLY a JSON object with keys "subject" and "body". The body should be plain text, line breaks as \\n.
 """
 
@@ -225,23 +230,50 @@ async def generate_email(
     contact: dict[str, Any],
     web_context: str = "",
     user_name: str = "",
+    db: Any = None,
+    lead_id: int | None = None,
 ) -> dict[str, str]:
-    """Generate a personalized email template. Returns {"subject", "body"}."""
+    """Generate a personalized email template. Returns {"subject", "body"}.
+
+    If `db` is passed, the company profile is injected into the system prompt,
+    and recent templates + previous emails to this contact are injected into
+    the user message for tone/continuity grounding."""
     if not is_ai_configured():
         raise RuntimeError("No AI provider configured")
 
-    user_message_parts = [f"User's request: {prompt.strip()}"]
+    # System prompt = base rules + company profile (RAG: who we are)
+    system = SYSTEM_PROMPT
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            profile = get_company_profile(db)
+            company_block = build_company_block(profile)
+            if company_block:
+                system = SYSTEM_PROMPT + "\n\n" + company_block
+        except Exception:
+            pass  # context is best-effort; never block the send
+
+    # User message = prompt (loud) + recipient + web + history
+    user_message_parts = [f"USER PROMPT (follow precisely):\n{prompt.strip()}"]
     contact_lines = []
     for k in ("name", "first_name", "company", "title", "email"):
         v = (contact or {}).get(k)
         if v:
             contact_lines.append(f"  {k}: {v}")
     if contact_lines:
-        user_message_parts.append("Sample contact:\n" + "\n".join(contact_lines))
-    if web_context:
-        user_message_parts.append(web_context)
+        user_message_parts.append("Sample recipient:\n" + "\n".join(contact_lines))
     if user_name:
         user_message_parts.append(f"Sender's name: {user_name}")
+    if web_context:
+        user_message_parts.append(web_context)
+    if db is not None:
+        from app.services.company_context import build_email_writer_history
+        try:
+            hist = build_email_writer_history(db, lead_id)
+            if hist:
+                user_message_parts.append(hist)
+        except Exception:
+            pass
 
     schema = {
         "type": "object",
@@ -252,7 +284,7 @@ async def generate_email(
         "required": ["subject", "body"],
     }
     parsed = await _structured_call(
-        SYSTEM_PROMPT, "\n\n".join(user_message_parts), schema, temperature=0.7,
+        system, "\n\n".join(user_message_parts), schema, temperature=0.7,
     )
     subject = str(parsed.get("subject", "")).strip()
     body = str(parsed.get("body", "")).strip()
@@ -286,9 +318,20 @@ NEXT_STEP_SCHEMA = {
 }
 
 
-async def suggest_next_step(deal_context: str) -> dict:
-    """deal_context is a free-text summary of the deal's state — caller assembles it."""
-    return await _structured_call(NEXT_STEP_SYSTEM, deal_context, NEXT_STEP_SCHEMA)
+async def suggest_next_step(deal_context: str, db: Any = None) -> dict:
+    """deal_context is a free-text summary of the deal's state — caller assembles it.
+    If db is passed, the company profile is added to the system prompt so the
+    suggestion is grounded in what we actually sell."""
+    system = NEXT_STEP_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = NEXT_STEP_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, deal_context, NEXT_STEP_SCHEMA)
 
 
 # ── Meeting summarizer / MOM generator ───────────────────────────────────────
@@ -339,8 +382,17 @@ MEETING_SCHEMA = {
 }
 
 
-async def summarize_meeting(notes: str) -> dict:
-    return await _structured_call(MEETING_SYSTEM, f"Meeting notes:\n\n{notes}", MEETING_SCHEMA)
+async def summarize_meeting(notes: str, db: Any = None) -> dict:
+    system = MEETING_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = MEETING_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, f"Meeting notes:\n\n{notes}", MEETING_SCHEMA)
 
 
 # ── JD / Requirement analyzer ────────────────────────────────────────────────
@@ -380,5 +432,14 @@ JD_SCHEMA = {
 }
 
 
-async def analyze_jd(jd_text: str) -> dict:
-    return await _structured_call(JD_SYSTEM, f"Job description:\n\n{jd_text}", JD_SCHEMA)
+async def analyze_jd(jd_text: str, db: Any = None) -> dict:
+    system = JD_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = JD_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, f"Job description:\n\n{jd_text}", JD_SCHEMA)

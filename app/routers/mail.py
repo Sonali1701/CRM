@@ -380,7 +380,10 @@ async def mail_generate(
                     web_context = await fetch_company_context(client.website)
 
     try:
-        result = await generate_email(prompt, contact, web_context, user_name=user.full_name)
+        result = await generate_email(
+            prompt, contact, web_context,
+            user_name=user.full_name, db=db, lead_id=lid,
+        )
     except RuntimeError as e:
         raise HTTPException(502, str(e))
 

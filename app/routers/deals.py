@@ -176,7 +176,7 @@ async def deal_suggest_next_step(deal_id: int, user: User = Depends(require_user
     context = "\n".join(context_parts)
 
     try:
-        result = await suggest_next_step(context)
+        result = await suggest_next_step(context, db=db)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     return JSONResponse(result)

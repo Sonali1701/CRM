@@ -44,29 +44,29 @@
     </div>
   </a>
 
-  <a href="/email-templates" class="card p-5 hover:shadow-md transition-shadow">
+  <a href="/leads" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
     <div class="flex items-start gap-3">
       <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
         <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
       </div>
       <div>
         <h2 class="font-semibold text-slate-900">AI Email Composer</h2>
-        <p class="text-sm text-slate-500 mt-1">From <a href="/leads" class="text-brand-600 hover:underline">Contacts</a> → select recipients → Send Email → "Generate with AI". Produces personalized templates with placeholders.</p>
+        <p class="text-sm text-slate-500 mt-1">Go to Contacts, select recipients, click <b>Send Email</b>, then <b>Generate with AI</b>. Produces personalized templates with placeholders that adapt per recipient at send time.</p>
       </div>
     </div>
   </a>
 
-  <div class="card p-5 opacity-50">
+  <a href="/deals" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
     <div class="flex items-start gap-3">
-      <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 15.72l-6.19 4.5 2.39-7.36L2 8.36h7.61z"/></svg>
+      <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
       </div>
       <div>
-        <h2 class="font-semibold text-slate-700">Deal Next-Step Suggester</h2>
-        <p class="text-sm text-slate-500 mt-1">On any deal page, click <b>Suggest Next Step</b> in the sidebar — AI analyzes deal age, stage, last activity, and recommends what to do next.</p>
+        <h2 class="font-semibold text-slate-900">Deal Next-Step Suggester</h2>
+        <p class="text-sm text-slate-500 mt-1">Open any deal and click <b>Suggest</b> in the AI panel on the right — AI analyzes deal age, stage, last activity, value and notes, then recommends the next concrete action with urgency.</p>
       </div>
     </div>
-  </div>
+  </a>
 
 </div>
 {% endblock %}

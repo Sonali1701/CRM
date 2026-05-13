@@ -137,25 +137,52 @@ def _format_mom_text(r: dict) -> str:
     if r.get("summary"):
         lines.append("Summary: " + r["summary"])
     if r.get("attendees"):
-        lines.append("Attendees: " + ", ".join(r["attendees"]))
+        att_strs = []
+        for a in r["attendees"]:
+            if not a:
+                continue
+            if isinstance(a, str):
+                att_strs.append(a)
+            else:
+                bits = [a.get("name") or "", a.get("role") or "", a.get("organisation") or ""]
+                att_strs.append(" / ".join(b for b in bits if b))
+        if att_strs:
+            lines.append("Attendees: " + "; ".join(att_strs))
+    if r.get("priorities"):
+        lines.append("\nClient priorities:")
+        lines.extend(f"- {p}" for p in r["priorities"])
     if r.get("key_points"):
         lines.append("\nKey points:")
         lines.extend(f"- {p}" for p in r["key_points"])
     if r.get("action_items"):
         lines.append("\nAction items:")
         for it in r["action_items"]:
-            owner = (it or {}).get("owner", "")
-            action = (it or {}).get("action", "")
-            due = (it or {}).get("due_in_days", "")
-            lines.append(f"- [{owner}] {action} (due in {due}d)")
+            it = it or {}
+            owner = it.get("owner", "")
+            action = it.get("action", "")
+            due = it.get("due_in_days", "")
+            pri = it.get("priority", "")
+            tag = f" [{pri}]" if pri else ""
+            lines.append(f"- [{owner}]{tag} {action} (due in {due}d)")
     if r.get("requirements"):
-        lines.append("\nRequirements raised:")
+        lines.append("\nStaffing requirements raised:")
         for req in r["requirements"]:
             req = req or {}
+            skills = req.get("skills") or []
+            skills_str = ", ".join(skills) if skills else ""
             lines.append(
-                f"- {req.get('skill_or_role', '')} · {req.get('count', '')} · "
-                f"{req.get('location', '')} · {req.get('rate', '')} · urgency: {req.get('urgency', '')}"
+                f"- {req.get('role', '')} ({req.get('count', '')}) · "
+                f"{req.get('contract_type', '')} · {req.get('experience_years', 0)}y+ · "
+                f"{req.get('location', '')} · rate {req.get('rate', '')} · "
+                f"duration {req.get('duration', '')} · starts {req.get('start_date', '')} · "
+                f"urgency {req.get('urgency', '')}"
             )
+            if skills_str:
+                lines.append(f"    Skills: {skills_str}")
+    if r.get("next_meeting"):
+        nm = r["next_meeting"] or {}
+        if nm.get("scheduled") or nm.get("agenda"):
+            lines.append(f"\nNext meeting: {nm.get('scheduled', '')} — {nm.get('agenda', '')}")
     return "\n".join(lines)
 
 

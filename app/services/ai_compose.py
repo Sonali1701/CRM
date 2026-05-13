@@ -336,21 +336,45 @@ async def suggest_next_step(deal_context: str, db: Any = None) -> dict:
 
 # ── Meeting summarizer / MOM generator ───────────────────────────────────────
 
-MEETING_SYSTEM = """You convert rough meeting notes from a staffing-sales conversation into a structured Minutes-of-Meeting (MOM).
+MEETING_SYSTEM = """You convert rough notes from a staffing-sales meeting into a structured MOM. You do TWO jobs at once: (a) extract hiring requirements with full detail and (b) produce the meeting-of-minutes itself.
 
 Return JSON with:
   - summary: 2-3 sentence executive summary
-  - attendees: list of names mentioned (best guess from notes)
-  - key_points: list of 3-7 short bullets covering what was discussed
-  - action_items: list of {owner, action, due_in_days} — owner is a name or "Us"/"Client"; due_in_days is your best estimate from context (default 7)
-  - requirements: list of {skill_or_role, count, location, rate, urgency} for any hiring/staffing requirements mentioned (empty list if none)
+  - attendees: list of {name, organisation, role} — leave fields blank if not stated; "organisation" should be "Us" / "Client" / actual company name when known
+  - priorities: list of 1-5 short bullets ranked from most-important to least, capturing what the client cares about most (e.g. "Onboard 3 backend devs in 2 weeks", "Reduce vendor count")
+  - key_points: list of 3-7 short bullets covering what was discussed (separate from priorities — these are notable facts, not asks)
+  - action_items: list of {owner, action, due_in_days, priority} — owner is a name or "Us"/"Client"; due_in_days your best estimate (default 7); priority is "high" | "medium" | "low"
+  - requirements: list of staffing/hiring requirements raised. Each is {role, skills, experience_years, count, location, rate, contract_type, duration, start_date, urgency}. Fields explained:
+      * role: the job title (e.g. "Senior Java Developer")
+      * skills: list of must-have technical/domain skills
+      * experience_years: integer years of experience (0 if unspecified)
+      * count: number of positions as a string (e.g. "3", "2-3", "unknown")
+      * location: city/country/remote/hybrid
+      * rate: extracted compensation or empty string
+      * contract_type: "contract" | "full_time" | "contract_to_hire" | "unspecified"
+      * duration: contract duration or empty string (e.g. "6 months", "12 months extendable")
+      * start_date: when they want to start (e.g. "ASAP", "2 weeks", "Q3 2026")
+      * urgency: "high" | "medium" | "low"
+    Empty list if no hiring requirements were discussed.
+  - next_meeting: object {scheduled, agenda} if a follow-up was agreed (else null). "scheduled" is the date/time mentioned, "agenda" is a one-line topic.
 """
 
 MEETING_SCHEMA = {
     "type": "object",
     "properties": {
         "summary": {"type": "string"},
-        "attendees": {"type": "array", "items": {"type": "string"}},
+        "attendees": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "organisation": {"type": "string"},
+                    "role": {"type": "string"},
+                },
+            },
+        },
+        "priorities": {"type": "array", "items": {"type": "string"}},
         "key_points": {"type": "array", "items": {"type": "string"}},
         "action_items": {
             "type": "array",
@@ -360,6 +384,7 @@ MEETING_SCHEMA = {
                     "owner": {"type": "string"},
                     "action": {"type": "string"},
                     "due_in_days": {"type": "integer"},
+                    "priority": {"type": "string"},
                 },
                 "required": ["action"],
             },
@@ -369,12 +394,24 @@ MEETING_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "skill_or_role": {"type": "string"},
+                    "role": {"type": "string"},
+                    "skills": {"type": "array", "items": {"type": "string"}},
+                    "experience_years": {"type": "integer"},
                     "count": {"type": "string"},
                     "location": {"type": "string"},
                     "rate": {"type": "string"},
+                    "contract_type": {"type": "string"},
+                    "duration": {"type": "string"},
+                    "start_date": {"type": "string"},
                     "urgency": {"type": "string"},
                 },
+            },
+        },
+        "next_meeting": {
+            "type": "object",
+            "properties": {
+                "scheduled": {"type": "string"},
+                "agenda": {"type": "string"},
             },
         },
     },

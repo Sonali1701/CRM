@@ -205,12 +205,13 @@ def link_messages_to_activities(db: Session, user_id: int) -> None:
 
 
 async def send_mail(db: Session, account: MailAccount, to: list[str], cc: list[str] | None, subject: str, body_html: str, client_id: int | None, lead_id: int | None, deal_id: int | None) -> str | None:
+    from app.services.email_format import text_to_html
     token = await ensure_account_access_token(db, account)
 
     payload = {
         "message": {
             "subject": subject,
-            "body": {"contentType": "HTML", "content": body_html},
+            "body": {"contentType": "HTML", "content": text_to_html(body_html)},
             "toRecipients": [{"emailAddress": {"address": addr}} for addr in to],
         }
     }

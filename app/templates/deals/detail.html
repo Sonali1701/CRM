@@ -28,7 +28,7 @@
         <button type="submit"
           class="w-full text-xs py-1.5 rounded text-center transition-colors
             {% if deal.stage.value == s.value %}bg-brand-600 text-white font-semibold
-            {% elif s.value in open_stages and open_stages.index(s.value) < open_stages.index(deal.stage.value) if deal.stage.value in open_stages else False %}bg-brand-100 text-brand-700
+            {% elif deal.stage.value in open_stages and s.value in open_stages and open_stages.index(s.value) < open_stages.index(deal.stage.value) %}bg-brand-100 text-brand-700
             {% else %}bg-slate-100 text-slate-500 hover:bg-slate-200{% endif %}">
           {{ stage_labels[s] }}
         </button>
@@ -146,7 +146,24 @@
   </div>
 
   <!-- Sidebar -->
-  <div class="space-y-4">
+  <div class="space-y-4" x-data="{
+    busy: false, error: '', result: null,
+    async suggest() {
+      this.busy = true; this.error = ''; this.result = null;
+      try {
+        const resp = await fetch('/deals/{{ deal.id }}/suggest-next-step', { method: 'POST' });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || ('HTTP ' + resp.status));
+        }
+        this.result = await resp.json();
+      } catch (e) {
+        this.error = String(e.message || e);
+      } finally {
+        this.busy = false;
+      }
+    }
+  }">
     <div class="card p-4 text-sm space-y-2">
       <h2 class="font-medium mb-2">Quick Info</h2>
       <p class="flex justify-between"><span class="text-slate-500">Company</span> <span>{% if deal.client %}<a href="/clients/{{ deal.client_id }}" class="hover:text-brand-600">{{ deal.client.name }}</a>{% else %}—{% endif %}</span></p>
@@ -156,6 +173,33 @@
       {% if deal.last_activity_at %}
         <p class="flex justify-between"><span class="text-slate-500">Last activity</span> <span>{{ deal.last_activity_at | date }}</span></p>
       {% endif %}
+    </div>
+
+    <!-- AI Next-Step Suggestion -->
+    <div class="card p-4 bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-medium text-sm text-indigo-900 flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+          AI Next Step
+        </h2>
+        <button type="button" @click="suggest()" :disabled="busy"
+                class="btn btn-primary btn-sm disabled:opacity-50">
+          <span x-text="busy ? 'Thinking…' : (result ? 'Re-suggest' : 'Suggest')"></span>
+        </button>
+      </div>
+      <div x-show="error" x-text="error" class="text-xs text-red-600"></div>
+      <template x-if="result">
+        <div class="mt-2 space-y-2">
+          <div class="flex items-start gap-2">
+            <span class="badge text-xs flex-shrink-0"
+              :class="result.urgency === 'high' ? 'bg-red-100 text-red-700' : result.urgency === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'"
+              x-text="result.urgency"></span>
+          </div>
+          <p class="text-sm font-semibold text-slate-900" x-text="result.action"></p>
+          <p class="text-xs text-slate-600" x-text="result.reason"></p>
+        </div>
+      </template>
+      <p x-show="!result && !error && !busy" class="text-xs text-slate-500">Click Suggest — AI analyzes the deal age, stage, last activity, and recommends what to do next.</p>
     </div>
   </div>
 </div>

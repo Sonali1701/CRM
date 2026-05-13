@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}AI Meeting Summarizer – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/ai-tools" class="text-slate-400 hover:text-slate-600 text-sm">← AI Tools</a>
+    <h1 class="text-xl font-semibold">Meeting Summarizer</h1>
+  </div>
+
+  <div class="card p-5 mb-5">
+    <p class="text-sm text-slate-500 mb-4">Paste raw meeting notes (or a transcript). The AI produces a structured MOM and can create tasks for each action item, linked to the contact or company you pick.</p>
+    <form method="post" action="/ai-tools/meeting" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Meeting notes <span class="text-red-500">*</span></label>
+        <textarea name="notes" rows="10" required class="textarea text-sm"
+                  placeholder="Met with Priya from Acme Corp today. They're scaling their backend team — looking for 3 Senior Java engineers in Bangalore, contract-to-hire, budget around 1.8-2L/month. Procurement involvement needed. They want resumes by Friday. Discussed our delivery model and how we can ramp in 2 weeks…">{{ notes }}</textarea>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium mb-1">Attach to Contact <span class="text-slate-400 font-normal">(optional)</span></label>
+          <select name="lead_id" class="select text-sm">
+            <option value="">— None —</option>
+            {% for l in leads %}
+              <option value="{{ l.id }}" {% if selected_lead_id == l.id %}selected{% endif %}>{{ l.name }}{% if l.company %} ({{ l.company }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Attach to Company <span class="text-slate-400 font-normal">(optional)</span></label>
+          <select name="client_id" class="select text-sm">
+            <option value="">— None —</option>
+            {% for c in clients %}
+              <option value="{{ c.id }}" {% if selected_client_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <label class="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="create_activities" value="1" class="rounded" checked />
+        Auto-create a Meeting activity + one Task per action item
+      </label>
+
+      <button type="submit" class="btn btn-primary">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+        Summarize
+      </button>
+    </form>
+  </div>
+
+  {% if result %}
+  <div class="card p-5 mb-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold text-slate-900">AI Summary</h2>
+      {% if created_activities %}
+        <span class="badge bg-green-100 text-green-700">Created {{ created_activities }} task{{ '' if created_activities == 1 else 's' }}</span>
+      {% endif %}
+    </div>
+
+    {% if result.summary %}
+    <div class="mb-4">
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Summary</h3>
+      <p class="text-sm text-slate-800">{{ result.summary }}</p>
+    </div>
+    {% endif %}
+
+    {% if result.attendees %}
+    <div class="mb-4">
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Attendees</h3>
+      <p class="text-sm text-slate-700">{{ result.attendees | join(', ') }}</p>
+    </div>
+    {% endif %}
+
+    {% if result.key_points %}
+    <div class="mb-4">
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Key Points</h3>
+      <ul class="space-y-1 text-sm text-slate-700">
+        {% for p in result.key_points %}
+          <li class="flex gap-2"><span class="text-slate-400">•</span><span>{{ p }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result.action_items %}
+    <div class="mb-4">
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Action Items</h3>
+      <table class="crm crm-compact w-full text-sm">
+        <thead><tr><th class="w-1/5">Owner</th><th>Action</th><th class="w-24 text-right">Due</th></tr></thead>
+        <tbody>
+          {% for it in result.action_items %}
+            <tr>
+              <td class="text-slate-600">{{ it.owner or '—' }}</td>
+              <td>{{ it.action }}</td>
+              <td class="text-right text-xs text-slate-500">in {{ it.due_in_days or 7 }} day{{ '' if (it.due_in_days or 7) == 1 else 's' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if result.requirements %}
+    <div>
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Staffing Requirements Raised</h3>
+      <table class="crm crm-compact w-full text-sm">
+        <thead><tr><th>Role / Skill</th><th>Count</th><th>Location</th><th>Rate</th><th>Urgency</th></tr></thead>
+        <tbody>
+          {% for r in result.requirements %}
+          <tr>
+            <td class="font-medium">{{ r.skill_or_role or '—' }}</td>
+            <td class="text-slate-600">{{ r.count or '—' }}</td>
+            <td class="text-slate-600">{{ r.location or '—' }}</td>
+            <td class="text-slate-600">{{ r.rate or '—' }}</td>
+            <td class="text-slate-600">{{ r.urgency or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

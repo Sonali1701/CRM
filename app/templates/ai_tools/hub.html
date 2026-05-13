@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}AI Tools – Radixsol CRM{% endblock %}
+{% block content %}
+
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-slate-900">AI Tools</h1>
+  <p class="text-sm text-slate-500 mt-0.5">Gemini-powered helpers for staffing sales.</p>
+</div>
+
+{% if not ai_enabled %}
+<div class="card p-4 mb-6 bg-amber-50 border-amber-200">
+  <p class="text-sm text-amber-800">
+    <b>Gemini API key not set.</b> Get a free key at
+    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="underline">aistudio.google.com</a>
+    and set <code class="px-1 bg-amber-100 rounded text-xs">GEMINI_API_KEY</code> in env vars.
+    No card required, 1500 req/day on the free tier.
+  </p>
+</div>
+{% endif %}
+
+<div class="grid sm:grid-cols-2 gap-4">
+
+  <a href="/ai-tools/meeting" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">Meeting Summarizer</h2>
+        <p class="text-sm text-slate-500 mt-1">Paste raw meeting notes — get a structured MOM with summary, attendees, action items, and any hiring requirements raised. Auto-creates tasks for action items.</p>
+      </div>
+    </div>
+  </a>
+
+  <a href="/ai-tools/jd" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">JD / Requirement Analyzer</h2>
+        <p class="text-sm text-slate-500 mt-1">Paste a job description — get extracted role, seniority, must-have skills, experience years, location, employment type, rate, urgency.</p>
+      </div>
+    </div>
+  </a>
+
+  <a href="/email-templates" class="card p-5 hover:shadow-md transition-shadow">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">AI Email Composer</h2>
+        <p class="text-sm text-slate-500 mt-1">From <a href="/leads" class="text-brand-600 hover:underline">Contacts</a> → select recipients → Send Email → "Generate with AI". Produces personalized templates with placeholders.</p>
+      </div>
+    </div>
+  </a>
+
+  <div class="card p-5 opacity-50">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 15.72l-6.19 4.5 2.39-7.36L2 8.36h7.61z"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-700">Deal Next-Step Suggester</h2>
+        <p class="text-sm text-slate-500 mt-1">On any deal page, click <b>Suggest Next Step</b> in the sidebar — AI analyzes deal age, stage, last activity, and recommends what to do next.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

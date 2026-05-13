@@ -6,7 +6,7 @@ from app.deps import AuthRedirect
 from app.flash import get_flash, clear_flash_response
 from app.routers import (
     auth, leads, clients, deals, activities, dashboard, users, pipeline, imports, mail,
-    email_templates, sequences, reports, cron,
+    email_templates, sequences, reports, cron, ai_tools,
 )
 
 app = FastAPI(title="Radixsol CRM")
@@ -26,6 +26,7 @@ app.include_router(email_templates.router, prefix="/email-templates")
 app.include_router(sequences.router, prefix="/sequences")
 app.include_router(reports.router)
 app.include_router(cron.router)
+app.include_router(ai_tools.router, prefix="/ai-tools")
 
 
 @app.on_event("startup")

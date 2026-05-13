@@ -128,6 +128,60 @@ def deal_delete(deal_id: int, user: User = Depends(require_user), db: Session = 
     return flash(RedirectResponse("/deals", 303), "Deal deleted.", "error")
 
 
+@router.post("/{deal_id}/suggest-next-step")
+async def deal_suggest_next_step(deal_id: int, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    """Returns JSON {action, reason, urgency} suggested by Gemini based on deal state."""
+    from app.services.ai_compose import is_gemini_configured, suggest_next_step
+    if not is_gemini_configured():
+        raise HTTPException(400, "AI is not configured. Set GEMINI_API_KEY in env.")
+
+    deal = _get_deal(deal_id, user, db)
+
+    # Build a compact textual description of the deal for the model
+    now = datetime.now(timezone.utc)
+    created = deal.created_at.replace(tzinfo=timezone.utc) if deal.created_at and deal.created_at.tzinfo is None else deal.created_at
+    age_days = (now - created).days if created else None
+    last = deal.last_activity_at
+    if last and last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    days_since_activity = (now - last).days if last else None
+
+    recent_activities = (
+        db.query(Activity)
+        .filter(Activity.deal_id == deal_id)
+        .order_by(Activity.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    activity_lines = [
+        f"  - {a.type.value}: {a.subject} ({a.created_at.strftime('%Y-%m-%d')})"
+        for a in recent_activities
+    ]
+
+    context_parts = [
+        f"Deal: {deal.title}",
+        f"Company: {deal.client.name if deal.client else 'none'}",
+        f"Stage: {STAGE_LABELS.get(deal.stage, deal.stage.value)}",
+        f"Value: {deal.value} {deal.currency}",
+        f"Probability: {deal.probability}%",
+        f"Owner: {deal.owner.full_name if deal.owner else 'unassigned'}",
+        f"Expected close: {deal.expected_close_date or 'not set'}",
+        f"Deal age: {age_days} days" if age_days is not None else "Deal age: unknown",
+        f"Days since last activity: {days_since_activity}" if days_since_activity is not None else "No activities logged yet",
+    ]
+    if deal.notes:
+        context_parts.append(f"Notes: {deal.notes[:500]}")
+    if activity_lines:
+        context_parts.append("Recent activities:\n" + "\n".join(activity_lines))
+    context = "\n".join(context_parts)
+
+    try:
+        result = await suggest_next_step(context)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    return JSONResponse(result)
+
+
 def _get_deal(deal_id: int, user: User, db: Session) -> Deal:
     q = db.query(Deal).filter(Deal.id == deal_id)
     if not user.is_manager:

@@ -45,8 +45,10 @@ def smtp_send(
         msg["Cc"] = ", ".join(cc_list)
     msg["Subject"] = subject
 
-    msg.set_content(_html_to_plain(body_html) or " ")
-    msg.add_alternative(body_html, subtype="html")
+    from app.services.email_format import text_to_html
+    html_body = text_to_html(body_html)
+    msg.set_content(_html_to_plain(html_body) or " ")
+    msg.add_alternative(html_body, subtype="html")
 
     rcpt = list(to_list) + (cc_list or [])
 

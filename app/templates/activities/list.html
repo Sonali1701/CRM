@@ -67,7 +67,12 @@
             {% elif act.due_at %}Due {{ act.due_at | date }}
             {% else %}{{ act.created_at | date }}{% endif %}
           </p>
-          <div class="mt-1 flex gap-1 justify-end">
+          <div class="mt-1 flex gap-2 justify-end items-center">
+            {% if act.lead_id and act.type.value in ('call', 'meeting', 'email') %}
+              <button type="button"
+                      @click="$dispatch('open-followup', { id: {{ act.id }} })"
+                      class="text-xs text-indigo-600 hover:underline">AI follow-up</button>
+            {% endif %}
             {% if show_complete and not act.completed %}
               <form method="post" action="/activities/{{ act.id }}/complete">
                 <input type="hidden" name="redirect_to" value="/activities" />
@@ -84,6 +89,34 @@
     </div>
   </li>
 {%- endmacro %}
+
+<div x-data="{
+  showModal: false,
+  busy: false,
+  error: '',
+  subject: '',
+  body: '',
+  to: '',
+  leadId: null,
+  async open(activityId) {
+    this.showModal = true; this.busy = true; this.error = '';
+    this.subject = ''; this.body = ''; this.to = ''; this.leadId = null;
+    try {
+      const resp = await fetch('/ai-tools/followup/' + activityId, { method: 'POST' });
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}));
+        throw new Error(j.detail || ('HTTP ' + resp.status));
+      }
+      const data = await resp.json();
+      this.subject = data.subject; this.body = data.body;
+      this.to = data.to; this.leadId = data.lead_id;
+    } catch (e) {
+      this.error = String(e.message || e);
+    } finally {
+      this.busy = false;
+    }
+  }
+}" @open-followup.window="open($event.detail.id)">
 
 <div class="mb-5 flex items-center justify-between">
   <div>
@@ -124,4 +157,53 @@
     {% endif %}
   </div>
 </div>
+
+<!-- Follow-up draft modal -->
+<div x-show="showModal" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto"
+     @keydown.escape.window="showModal = false">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl my-8" @click.stop>
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div>
+        <h2 class="font-semibold text-slate-900">AI Follow-up Draft</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Edit before sending — placeholders are replaced at send time.</p>
+      </div>
+      <button @click="showModal = false" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/mail/send" class="p-5 space-y-3">
+      <input type="hidden" name="redirect_to" value="/activities" />
+      <input type="hidden" name="lead_id" :value="leadId" />
+      <div x-show="busy" class="py-8 text-center text-sm text-indigo-600">
+        <svg class="w-5 h-5 inline-block animate-spin mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Generating follow-up…
+      </div>
+      <div x-show="error" x-text="error" class="text-sm text-red-600"></div>
+      <div x-show="!busy && !error">
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">To</label>
+          <input name="to" x-model="to" required class="input text-sm font-mono" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Subject</label>
+          <input name="subject" x-model="subject" required class="input text-sm" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Message</label>
+          <textarea name="body_html" x-model="body" rows="9" required class="textarea text-sm"></textarea>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button type="button" @click="showModal = false" class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Send
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+</div><!-- end x-data -->
 {% endblock %}

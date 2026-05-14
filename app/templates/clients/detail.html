@@ -30,7 +30,13 @@
       </div>
     </div>
   </div>
-  <a href="/deals/new?client_id={{ client.id }}" class="btn btn-primary flex-shrink-0">+ New Deal</a>
+  <div class="flex flex-shrink-0 gap-2">
+    <a href="/ai-tools/brief/company/{{ client.id }}" class="btn btn-secondary" title="AI pre-meeting brief">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+      AI Brief
+    </a>
+    <a href="/deals/new?client_id={{ client.id }}" class="btn btn-primary">+ New Deal</a>
+  </div>
 </div>
 
 <div class="grid lg:grid-cols-3 gap-6">

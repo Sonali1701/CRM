@@ -6,6 +6,12 @@
     <a href="/leads" class="text-slate-400 hover:text-slate-600 text-sm">← Contacts</a>
     <h1 class="text-xl font-semibold">{{ 'Edit Contact' if lead else 'New Contact' }}</h1>
     {% if lead %}<span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span>{% endif %}
+    {% if lead %}
+      <a href="/ai-tools/brief/contact/{{ lead.id }}" class="ml-auto btn btn-secondary btn-sm" title="AI pre-meeting brief">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+        AI Brief
+      </a>
+    {% endif %}
   </div>
 
   <div class="card p-6">

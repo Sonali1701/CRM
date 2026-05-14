@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Objection Handler – AI Tools – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/ai-tools" class="text-slate-400 hover:text-slate-600 text-sm">← AI Tools</a>
+    <h1 class="text-xl font-semibold">Objection Handler</h1>
+  </div>
+
+  <p class="text-sm text-slate-500 mb-4">Paste the objection the prospect raised. The AI returns a coached response in your company's voice that reframes the concern — plus alternative angles to try.</p>
+
+  {% if not ai_enabled %}
+  <div class="card p-4 mb-4 bg-amber-50 border-amber-200 text-sm text-amber-800">
+    No AI provider configured. Set <code>GEMINI_API_KEY</code> or <code>GROQ_API_KEY</code> first.
+  </div>
+  {% endif %}
+
+  <form method="post" action="/ai-tools/objection" class="card p-5 space-y-4 mb-5">
+    <div>
+      <label class="block text-sm font-medium mb-1">Objection from the prospect <span class="text-red-500">*</span></label>
+      <textarea name="objection" rows="4" required class="textarea text-sm" placeholder="e.g. Your rates are 20% higher than what we currently pay our existing vendor.">{{ objection or '' }}</textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Deal / account context <span class="text-slate-400 font-normal">(optional)</span></label>
+      <textarea name="context" rows="3" class="textarea text-sm" placeholder="e.g. Mid-stage healthcare client, decision-maker is procurement, we've already won a small pilot.">{{ context or '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary" {% if not ai_enabled %}disabled{% endif %}>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+      Suggest Response
+    </button>
+  </form>
+
+  {% if result %}
+  <div class="card p-5 space-y-4">
+    <div>
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Suggested Response</h3>
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+        <p class="text-sm text-slate-800 whitespace-pre-line leading-relaxed">{{ result.response }}</p>
+      </div>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('resp-text').innerText); this.textContent='Copied!'" type="button" class="text-xs text-brand-600 hover:underline mt-2">
+        Copy to clipboard
+      </button>
+      <span id="resp-text" class="hidden">{{ result.response }}</span>
+    </div>
+
+    {% if result.tactic %}
+    <div>
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Why this works</h3>
+      <p class="text-sm text-slate-700">{{ result.tactic }}</p>
+    </div>
+    {% endif %}
+
+    {% if result.alternatives %}
+    <div>
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Alternative Angles</h3>
+      <ul class="space-y-1 text-sm text-slate-700">
+        {% for alt in result.alternatives %}
+          <li class="flex gap-2"><span class="text-slate-400">→</span><span>{{ alt }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

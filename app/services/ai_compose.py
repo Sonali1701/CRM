@@ -480,3 +480,162 @@ async def analyze_jd(jd_text: str, db: Any = None) -> dict:
         except Exception:
             pass
     return await _structured_call(system, f"Job description:\n\n{jd_text}", JD_SCHEMA)
+
+
+# ── Dashboard narrator ───────────────────────────────────────────────────────
+
+NARRATOR_SYSTEM = """You explain CRM pipeline numbers to a sales leader in plain English. Given the metrics, write ONE concise paragraph (2-4 sentences) that:
+- leads with the most important signal (positive OR negative)
+- calls out one risk to watch
+- calls out one opportunity to act on this week
+Reference the actual numbers. No fluff, no preamble like "Here's a summary".
+
+Return JSON with:
+  - headline: a 6-10 word tagline of the pipeline state
+  - narrative: the paragraph"""
+
+NARRATOR_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headline": {"type": "string"},
+        "narrative": {"type": "string"},
+    },
+    "required": ["narrative"],
+}
+
+
+async def narrate_pipeline(metrics: dict, db: Any = None) -> dict:
+    system = NARRATOR_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = NARRATOR_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    user = "Pipeline metrics:\n" + "\n".join(f"- {k}: {v}" for k, v in metrics.items())
+    return await _structured_call(system, user, NARRATOR_SCHEMA, temperature=0.4)
+
+
+# ── Objection handler ────────────────────────────────────────────────────────
+
+OBJECTION_SYSTEM = """You are a B2B sales coach for a staffing firm. The user shares an objection a prospect/client raised; you coach them on how to respond.
+
+Rules:
+- Never be defensive. Reframe the objection around the client's underlying concern.
+- Tie the response to OUR ACTUAL SERVICES (use the About-us block) — do not invent capabilities.
+- Use our brand voice/tone if provided.
+- Keep responses concise and practical, written so the rep can paraphrase verbatim.
+
+Return JSON with:
+  - response: a coached one-paragraph response (3-5 sentences) the rep can send/say
+  - tactic: ONE short sentence on WHY this response works
+  - alternatives: 2 alternative angles to try if the first doesn't land (each is one short sentence)"""
+
+OBJECTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "response": {"type": "string"},
+        "tactic": {"type": "string"},
+        "alternatives": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["response", "tactic", "alternatives"],
+}
+
+
+async def handle_objection(objection: str, context: str = "", db: Any = None) -> dict:
+    system = OBJECTION_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = OBJECTION_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    parts = [f"Objection from the prospect/client:\n{objection.strip()}"]
+    if context.strip():
+        parts.append(f"Deal/account context:\n{context.strip()}")
+    return await _structured_call(system, "\n\n".join(parts), OBJECTION_SCHEMA, temperature=0.5)
+
+
+# ── Pre-meeting research brief ───────────────────────────────────────────────
+
+BRIEF_SYSTEM = """You prepare a pre-meeting briefing about a CRM account for a staffing-sales rep. Use ONLY the data the user provides — never invent specifics. If the data is thin, say so in the overview.
+
+Return JSON with:
+  - overview: 2-3 sentence summary of who this is and where the relationship stands
+  - talking_points: list of 3-5 specific things to discuss next (each tied to something in the data)
+  - questions_to_ask: list of 3-5 discovery/qualification questions
+  - watch_outs: list of 0-3 sensitivities or risks (empty list if none surface)
+  - opportunities: list of 1-3 specific upsell / expansion / engagement ideas grounded in OUR services"""
+
+BRIEF_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "overview": {"type": "string"},
+        "talking_points": {"type": "array", "items": {"type": "string"}},
+        "questions_to_ask": {"type": "array", "items": {"type": "string"}},
+        "watch_outs": {"type": "array", "items": {"type": "string"}},
+        "opportunities": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["overview", "talking_points", "questions_to_ask"],
+}
+
+
+async def generate_brief(account_context: str, db: Any = None) -> dict:
+    system = BRIEF_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = BRIEF_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, account_context, BRIEF_SCHEMA, temperature=0.4)
+
+
+# ── Follow-up email drafter ──────────────────────────────────────────────────
+
+FOLLOWUP_SYSTEM = """You draft a follow-up email after a logged sales activity (call / meeting / email). The user gives you the activity content and the recipient; you write the email.
+
+Rules:
+- Reference WHAT WAS DISCUSSED specifically — pull commitments, open questions, next steps from the activity
+- Do not invent details that weren't in the activity
+- Keep it 3-5 sentences
+- Use placeholders for personalisation: {{first_name}}, {{name}}, {{company}}
+- End with the sender's signature if provided in the About-us block, else "Best," then a new line then "[Your name]"
+- Write in OUR brand voice
+
+Return JSON with:
+  - subject: under 60 chars, references the topic
+  - body: plain text with \\n line breaks"""
+
+FOLLOWUP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "subject": {"type": "string"},
+        "body": {"type": "string"},
+    },
+    "required": ["subject", "body"],
+}
+
+
+async def draft_followup(activity_summary: str, contact: dict | None = None, db: Any = None) -> dict:
+    system = FOLLOWUP_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = FOLLOWUP_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    parts = [f"Activity to follow up on:\n{activity_summary}"]
+    if contact:
+        lines = [f"  {k}: {v}" for k, v in (contact or {}).items() if v]
+        if lines:
+            parts.append("Recipient:\n" + "\n".join(lines))
+    return await _structured_call(system, "\n\n".join(parts), FOLLOWUP_SCHEMA, temperature=0.5)

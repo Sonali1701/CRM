@@ -24,7 +24,7 @@ router = APIRouter()
 
 
 @router.get("/reports")
-def reports(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+async def reports(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     thirty_days_ago = now - timedelta(days=30)
@@ -115,6 +115,34 @@ def reports(request: Request, user: User = Depends(require_user), db: Session = 
     for a in recent_acts:
         activity_by_type[a.type.value] = activity_by_type.get(a.type.value, 0) + 1
 
+    # AI narration — best-effort, never blocks the page if AI is down or unconfigured
+    narration = None
+    from app.services.ai_compose import is_ai_configured, narrate_pipeline
+    if is_ai_configured():
+        try:
+            metrics_for_ai = {
+                "Open pipeline value": f"{int(pipeline_value):,}",
+                "Open deal count": len(open_deals),
+                "Won this month value": f"{int(won_value_month):,}",
+                "Won deals (all time)": len(won),
+                "Lost deals (all time)": len(lost),
+                "Win rate %": f"{win_rate:.0f}",
+                "Pipeline by stage (count + value)": ", ".join(
+                    f"{s['label']} = {s['count']} deals / {int(s['value']):,}" for s in by_stage
+                ),
+                "Activities last 30d": len(recent_acts),
+                "Email vs call vs meeting (30d)": (
+                    f"{activity_by_type.get('email', 0)} email · "
+                    f"{activity_by_type.get('call', 0)} call · "
+                    f"{activity_by_type.get('meeting', 0)} meeting"
+                ),
+                "Leads in funnel": lead_counts["total_leads"],
+                "Qualified leads": lead_counts["qualified"],
+            }
+            narration = await narrate_pipeline(metrics_for_ai, db=db)
+        except Exception as e:
+            print(f"[reports] narration failed: {e}")
+
     return templates.TemplateResponse(request, "reports/index.html", {
         "user": user,
         "flash": get_flash(request),
@@ -130,4 +158,5 @@ def reports(request: Request, user: User = Depends(require_user), db: Session = 
         "rep_rows": rep_rows,
         "activity_by_type": activity_by_type,
         "activity_total_30d": len(recent_acts),
+        "narration": narration,
     })

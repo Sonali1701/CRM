@@ -7,10 +7,12 @@
     <h1 class="text-xl font-semibold text-slate-900">Mail</h1>
     {% if account %}
       <p class="text-sm text-slate-500 mt-0.5">{{ account.mailbox }}</p>
+    {% elif smtp_only %}
+      <p class="text-sm text-slate-500 mt-0.5">Showing emails sent via SMTP from this account</p>
     {% endif %}
   </div>
-  {% if account %}
   <div class="flex gap-2">
+    {% if account %}
     <form method="post" action="/mail/sync">
       <input type="hidden" name="redirect_to" value="/mail" />
       <button type="submit" class="btn btn-secondary">
@@ -18,15 +20,17 @@
         Sync
       </button>
     </form>
+    {% else %}
+    <a href="/mail/connect" class="btn btn-secondary">Connect Outlook</a>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 
-{% if not account %}
+{% if not account and not items %}
 <div class="card p-12 text-center">
   <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-  <p class="text-slate-500 font-medium mb-1">No mailbox connected</p>
-  <p class="text-slate-400 text-sm mb-4">Connect your Outlook account to sync emails with your CRM contacts, companies, and deals.</p>
+  <p class="text-slate-500 font-medium mb-1">No mailbox connected and no sent emails yet</p>
+  <p class="text-slate-400 text-sm mb-4">Connect Outlook to sync your inbox + sent items, or just send via SMTP and your sent emails will appear here.</p>
   <a href="/mail/connect" class="btn btn-primary">Connect Outlook</a>
 </div>
 {% else %}
@@ -37,6 +41,7 @@
      class="px-4 py-2 text-sm rounded-lg font-medium transition-colors
        {% if folder == 'inbox' %}bg-brand-600 text-white{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
     Inbox
+    {% if not account %}<span class="text-xs opacity-60 ml-1">(needs Outlook)</span>{% endif %}
   </a>
   <a href="/mail?folder=sentItems"
      class="px-4 py-2 text-sm rounded-lg font-medium transition-colors
@@ -45,53 +50,64 @@
   </a>
 </div>
 
+{% if folder == 'inbox' and not account %}
+<div class="card p-4 mb-4 bg-amber-50 border-amber-200 text-sm text-amber-800">
+  Inbox shows messages synced from Outlook. <a href="/mail/connect" class="underline">Connect Outlook</a> to see incoming mail.
+  Sent items via SMTP <a href="/mail?folder=sentItems" class="underline">still work</a>.
+</div>
+{% endif %}
+
 <div class="card overflow-hidden">
-  {% if messages %}
+  {% if items %}
   <table class="crm crm-compact w-full">
     <thead>
       <tr>
         <th class="w-[22%]">{% if folder == 'sentItems' %}To{% else %}From{% endif %}</th>
-        <th class="w-[40%]">Subject</th>
-        <th class="w-[16%]">Linked To</th>
+        <th class="w-[38%]">Subject</th>
+        <th class="w-[14%]">Linked To</th>
         <th class="w-[12%]">Date</th>
-        <th class="w-[10%]"></th>
+        <th class="w-[8%]">Via</th>
+        <th class="w-[6%]"></th>
       </tr>
     </thead>
     <tbody>
-      {% for msg in messages %}
+      {% for it in items %}
       <tr>
         <td class="truncate max-w-0">
           <span class="block truncate text-slate-800">
-            {% if folder == 'sentItems' %}
-              {{ msg.to_emails | replace(';', ', ') or '—' }}
-            {% else %}
-              {{ msg.from_email or '—' }}
-            {% endif %}
+            {% if folder == 'sentItems' %}{{ it.to_label or '—' }}{% else %}{{ it.from_label or '—' }}{% endif %}
           </span>
         </td>
         <td class="truncate max-w-0">
-          <span class="block truncate font-medium text-slate-800">{{ msg.subject or '(No subject)' }}</span>
-          {% if msg.body_preview %}
-            <span class="block truncate text-slate-400 text-xs mt-0.5">{{ msg.body_preview[:80] }}</span>
+          <span class="block truncate font-medium text-slate-800">{{ it.subject }}</span>
+          {% if it.preview %}
+            <span class="block truncate text-slate-400 text-xs mt-0.5">{{ it.preview[:80] }}</span>
           {% endif %}
         </td>
         <td class="text-xs text-slate-500">
-          {% if msg.client_id %}
-            <a href="/clients/{{ msg.client_id }}" class="text-brand-600 hover:underline">Company</a>
-          {% elif msg.lead_id %}
-            <a href="/leads/{{ msg.lead_id }}" class="text-brand-600 hover:underline">Contact</a>
+          {% if it.client_id %}
+            <a href="/clients/{{ it.client_id }}" class="text-brand-600 hover:underline">Company</a>
+          {% elif it.lead_id %}
+            <a href="/leads/{{ it.lead_id }}" class="text-brand-600 hover:underline">Contact</a>
           {% else %}
             <span class="text-slate-300">—</span>
           {% endif %}
-          {% if msg.deal_id %}
-            · <a href="/deals/{{ msg.deal_id }}" class="text-brand-600 hover:underline">Deal</a>
+          {% if it.deal_id %}
+            · <a href="/deals/{{ it.deal_id }}" class="text-brand-600 hover:underline">Deal</a>
           {% endif %}
         </td>
         <td class="text-xs text-slate-500 whitespace-nowrap">
-          {{ (msg.received_at or msg.sent_at) | date if (msg.received_at or msg.sent_at) else '—' }}
+          {{ it.when | date if it.when else '—' }}
+        </td>
+        <td class="text-xs">
+          {% if it.source == 'Outlook' %}
+            <span class="badge bg-blue-50 text-blue-700 text-xs">Outlook</span>
+          {% else %}
+            <span class="badge bg-slate-100 text-slate-600 text-xs">SMTP</span>
+          {% endif %}
         </td>
         <td>
-          {% if not msg.client_id and not msg.lead_id %}
+          {% if not it.client_id and not it.lead_id %}
             <span class="badge bg-amber-50 text-amber-600 border-amber-200 text-xs">Unlinked</span>
           {% endif %}
         </td>
@@ -102,8 +118,12 @@
   {% else %}
   <div class="py-16 text-center">
     <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-    <p class="text-slate-500 font-medium mb-1">No messages yet</p>
-    <p class="text-slate-400 text-sm mb-4">Click Sync to fetch your latest emails.</p>
+    <p class="text-slate-500 font-medium mb-1">No messages in {% if folder == 'sentItems' %}Sent{% else %}Inbox{% endif %} yet</p>
+    {% if account %}
+      <p class="text-slate-400 text-sm mb-4">Click Sync to fetch your latest emails.</p>
+    {% else %}
+      <p class="text-slate-400 text-sm mb-4">Send your first email from <a href="/leads" class="text-brand-600 hover:underline">Contacts → Send Email</a>.</p>
+    {% endif %}
   </div>
   {% endif %}
 </div>

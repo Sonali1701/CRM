@@ -154,26 +154,97 @@ def mail_inbox(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    """Show messages from BOTH sources so users see their sent mail
+    regardless of whether they're on Graph OAuth or SMTP:
+      - EmailMessage rows synced from Microsoft Graph (inbox + sent)
+      - Activity rows of type=EMAIL that DON'T have a Graph parent
+        (SMTP sends, plus Graph sends still waiting for sync to catch up)
+    """
+    from sqlalchemy import select
+    from app.models.activity import ActivityType
+
     account = (
         db.query(MailAccount)
         .filter_by(user_id=user.id, provider="microsoft_graph")
         .first()
     )
-    messages = []
+
+    # 1) Graph-synced messages
+    graph_msgs = []
     if account:
-        messages = (
+        graph_msgs = (
             db.query(EmailMessage)
             .filter_by(mail_account_id=account.id, folder=folder)
-            .order_by(EmailMessage.received_at.desc(), EmailMessage.sent_at.desc())
-            .limit(100)
+            .order_by(
+                EmailMessage.received_at.desc().nullslast(),
+                EmailMessage.sent_at.desc().nullslast(),
+            )
+            .limit(200)
             .all()
         )
+
+    # 2) Activity-only emails (SMTP sends, or Graph sends not yet synced).
+    # Only relevant for the Sent tab — inbox is Graph-only.
+    activity_msgs: list[Activity] = []
+    if folder == "sentItems":
+        synced_ids = select(EmailMessage.activity_id).where(EmailMessage.activity_id.isnot(None))
+        q = db.query(Activity).filter(
+            Activity.type == ActivityType.EMAIL,
+            Activity.id.notin_(synced_ids),
+        )
+        if not user.is_manager:
+            q = q.filter(Activity.created_by_id == user.id)
+        activity_msgs = q.order_by(Activity.created_at.desc()).limit(200).all()
+
+    # Unified items list
+    items: list[dict] = []
+    for m in graph_msgs:
+        items.append({
+            "subject": m.subject or "(No subject)",
+            "from_label": m.from_email or "—",
+            "to_label": (m.to_emails or "").replace(";", ", "),
+            "preview": (m.body_preview or "")[:200],
+            "when": m.sent_at or m.received_at,
+            "lead_id": m.lead_id,
+            "client_id": m.client_id,
+            "deal_id": m.deal_id,
+            "source": "Outlook",
+        })
+    for a in activity_msgs:
+        recipient_bits = []
+        if a.lead:
+            recipient_bits.append(a.lead.name)
+            if a.lead.email:
+                recipient_bits.append(f"<{a.lead.email}>")
+        to_label = " ".join(recipient_bits) or "—"
+        from_label = a.created_by.full_name if a.created_by else "—"
+        if a.created_by_id == user.id:
+            from_label += " (you)"
+        items.append({
+            "subject": a.subject or "(No subject)",
+            "from_label": from_label,
+            "to_label": to_label,
+            "preview": (a.body or "")[:200],
+            "when": a.created_at,
+            "lead_id": a.lead_id,
+            "client_id": a.client_id,
+            "deal_id": a.deal_id,
+            "source": "SMTP",
+        })
+
+    items.sort(
+        key=lambda x: x["when"] or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    items = items[:100]
+
     return templates.TemplateResponse(request, "mail/inbox.html", {
         "user": user,
         "flash": get_flash(request),
         "account": account,
-        "messages": messages,
+        "items": items,
         "folder": folder,
+        "smtp_only": (account is None and len(items) > 0),
     })
 
 

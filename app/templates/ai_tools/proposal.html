@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Proposal — {{ deal.title }} – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3 flex-wrap">
+    <a href="/deals/{{ deal.id }}" class="text-slate-400 hover:text-slate-600 text-sm">← Deal</a>
+    <h1 class="text-xl font-semibold">Proposal Draft</h1>
+    <span class="badge bg-emerald-100 text-emerald-700">{{ deal.title }}</span>
+    <span class="badge bg-slate-100 text-slate-600">{{ deal.value | currency }}</span>
+  </div>
+
+  <p class="text-xs text-slate-500 mb-5">AI-drafted using this deal's data + linked meeting MOMs + your company profile. Review, edit, and use as the basis for your real proposal — placeholders like <code class="text-xs px-1 bg-slate-100 rounded">[TBD: rate per resource]</code> mean the AI didn't have enough data and you need to fill in.</p>
+
+  <!-- Executive summary -->
+  <div class="card p-5 mb-5">
+    <h2 class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Executive Summary</h2>
+    <p class="text-sm text-slate-800 leading-relaxed">{{ result.executive_summary }}</p>
+  </div>
+
+  <!-- Our understanding -->
+  {% if result.our_understanding %}
+  <div class="card p-5 mb-5">
+    <h2 class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-3">Our Understanding</h2>
+    <ul class="space-y-1.5 text-sm text-slate-700">
+      {% for u in result.our_understanding %}
+        <li class="flex gap-2"><span class="text-slate-400">▸</span><span>{{ u }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- Our approach -->
+  <div class="card p-5 mb-5">
+    <h2 class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Our Approach</h2>
+    <p class="text-sm text-slate-800 leading-relaxed">{{ result.our_approach }}</p>
+  </div>
+
+  <!-- Delivery model -->
+  {% if result.delivery_model %}
+  <div class="card p-5 mb-5">
+    <h2 class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-3">Delivery Model</h2>
+    <div class="grid sm:grid-cols-3 gap-3 text-sm">
+      <div>
+        <p class="text-xs text-slate-500 mb-0.5">Engagement</p>
+        <p class="font-medium text-slate-900">{{ result.delivery_model.engagement_type or '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 mb-0.5">Team</p>
+        <p class="font-medium text-slate-900">{{ result.delivery_model.team_composition or '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 mb-0.5">Timeline</p>
+        <p class="font-medium text-slate-900">{{ result.delivery_model.timeline or '—' }}</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Sample profile -->
+  {% if result.sample_profile %}
+  <div class="card p-5 mb-5">
+    <h2 class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Sample Profile</h2>
+    <p class="text-sm text-slate-800 whitespace-pre-line">{{ result.sample_profile }}</p>
+  </div>
+  {% endif %}
+
+  <!-- Commercials outline -->
+  {% if result.commercials_outline %}
+  <div class="card p-5 mb-5">
+    <h2 class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-3">Commercials</h2>
+    <ul class="space-y-1.5 text-sm text-slate-700">
+      {% for c in result.commercials_outline %}
+        <li class="flex gap-2"><span class="text-emerald-500">$</span><span>{{ c }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- Next steps -->
+  {% if result.next_steps %}
+  <div class="card p-5 mb-5">
+    <h2 class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-3">Next Steps</h2>
+    <ol class="space-y-1.5 text-sm text-slate-700 list-decimal ml-5">
+      {% for n in result.next_steps %}<li>{{ n }}</li>{% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+
+  <div class="flex gap-2">
+    <button onclick="window.print()" class="btn btn-secondary">Print Proposal</button>
+    <a href="/deals/{{ deal.id }}" class="btn btn-ghost">Back to Deal</a>
+  </div>
+</div>
+{% endblock %}

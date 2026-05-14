@@ -56,12 +56,29 @@ def _render(text: str, lead: Lead) -> str:
 
 # ── Daily task reminder digest ────────────────────────────────────────────────
 
-def _build_digest_html(user: User, overdue: list[Activity], today: list[Activity]) -> tuple[str, str]:
-    """Return (subject, html_body) for a rep's daily digest."""
-    lines = [
-        f"<p>Good morning {user.full_name.split()[0] if user.full_name else ''},</p>",
-        f"<p>Here's your task summary for today:</p>",
-    ]
+def _build_digest_html(
+    user: User,
+    overdue: list[Activity], today: list[Activity],
+    risky_deals: list[tuple] = None,
+    hot_deals: list = None,
+    ai_focus: dict | None = None,
+) -> tuple[str, str]:
+    """Return (subject, html_body) for a rep's daily digest with optional AI focus."""
+    first_name = user.full_name.split()[0] if user.full_name else ""
+    lines = [f"<p>Good morning {first_name},</p>"]
+
+    # AI focus paragraph at the top (if available)
+    if ai_focus and ai_focus.get("focus"):
+        lines.append(
+            "<div style='padding:14px;background:#eef2ff;border-left:4px solid #6366f1;"
+            "border-radius:6px;margin:14px 0'>"
+        )
+        if ai_focus.get("top_action"):
+            lines.append(f"<p style='margin:0 0 6px;font-weight:600;color:#3730a3'>"
+                         f"Today's top action: {ai_focus['top_action']}</p>")
+        lines.append(f"<p style='margin:0;color:#1e1b4b;line-height:1.5'>{ai_focus['focus']}</p>")
+        lines.append("</div>")
+
     if overdue:
         lines.append(f"<h3 style='color:#dc2626;margin-bottom:6px'>Overdue ({len(overdue)})</h3><ul>")
         for a in overdue[:25]:
@@ -73,10 +90,25 @@ def _build_digest_html(user: User, overdue: list[Activity], today: list[Activity
         for a in today[:25]:
             lines.append(f"<li><b>{a.subject}</b></li>")
         lines.append("</ul>")
-    if not overdue and not today:
-        lines.append("<p style='color:#16a34a'>You're all caught up — nothing overdue or due today.</p>")
+    if risky_deals:
+        lines.append(f"<h3 style='color:#ea580c;margin-bottom:6px'>At-risk deals ({len(risky_deals)})</h3><ul>")
+        for deal, risk in risky_deals[:8]:
+            reasons = "; ".join(risk.reasons) if risk.reasons else f"{risk.level} risk"
+            lines.append(f"<li><b>{deal.title}</b> — {reasons}</li>")
+        lines.append("</ul>")
+    if hot_deals:
+        lines.append(f"<h3 style='color:#16a34a;margin-bottom:6px'>Hot deals ({len(hot_deals)})</h3><ul>")
+        for d in hot_deals[:5]:
+            lines.append(f"<li><b>{d.title}</b> — {d.stage_label} · {d.value} {d.currency}</li>")
+        lines.append("</ul>")
+    if not overdue and not today and not risky_deals and not hot_deals:
+        lines.append("<p style='color:#16a34a'>You're all caught up — nothing overdue, due today, or at risk.</p>")
+
     lines.append("<p style='margin-top:16px;color:#64748b;font-size:13px'>— Radixsol CRM</p>")
-    subject = f"CRM Daily — {len(overdue)} overdue, {len(today)} due today"
+    counts = f"{len(overdue)} overdue · {len(today)} due today"
+    if risky_deals:
+        counts += f" · {len(risky_deals)} at risk"
+    subject = f"CRM Daily — {counts}"
     return subject, "".join(lines)
 
 
@@ -111,11 +143,18 @@ def _send_via_user_mailbox_or_smtp(db: Session, user: User, subject: str, html: 
 
 @router.post("/cron/daily-reminders")
 async def daily_reminders(request: Request, db: Session = Depends(get_db)):
-    """Email each active user their overdue + due-today task summary."""
+    """Email each active user their daily focus: AI summary at the top, then
+    overdue / due-today tasks, at-risk deals, and hot deals."""
     _check_key(request)
+
+    from app.models import Deal
+    from app.models.deal import OPEN_STAGES
+    from app.services.deal_risk import compute_risk
+    from app.services.ai_compose import is_ai_configured, daily_focus
 
     now = datetime.now(timezone.utc)
     end_of_today = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    seven_days_ago = now - timedelta(days=7)
 
     sent = 0
     skipped = 0
@@ -132,7 +171,7 @@ async def daily_reminders(request: Request, db: Session = Depends(get_db)):
             .order_by(Activity.due_at)
             .all()
         )
-        today = (
+        today_acts = (
             db.query(Activity)
             .filter(
                 Activity.completed == False,
@@ -143,11 +182,70 @@ async def daily_reminders(request: Request, db: Session = Depends(get_db)):
             .order_by(Activity.due_at)
             .all()
         )
-        if not overdue and not today:
+
+        # Their open deals → bucket into risky vs hot
+        my_open = (
+            db.query(Deal)
+            .filter(Deal.owner_id == u.id, Deal.stage.in_(OPEN_STAGES))
+            .all()
+        )
+        risky_deals: list[tuple] = []
+        hot_deals: list = []
+        for d in my_open:
+            r = compute_risk(d)
+            if r.level in ("high", "medium"):
+                risky_deals.append((d, r))
+        # Sort risky worst-first
+        risky_deals.sort(key=lambda t: (0 if t[1].level == "high" else 1, -(t[1].days_since_activity or 0)))
+
+        # Hot deals = deals with the most activity in the last 7 days
+        if my_open:
+            deal_ids = [d.id for d in my_open]
+            counts: dict[int, int] = {}
+            rows = (
+                db.query(Activity.deal_id)
+                .filter(Activity.deal_id.in_(deal_ids), Activity.created_at >= seven_days_ago)
+                .all()
+            )
+            for row in rows:
+                if row[0]:
+                    counts[row[0]] = counts.get(row[0], 0) + 1
+            id_to_deal = {d.id: d for d in my_open}
+            hot_deals = [id_to_deal[did] for did, _ in sorted(counts.items(), key=lambda kv: -kv[1])[:5]]
+
+        if not overdue and not today_acts and not risky_deals and not hot_deals:
             skipped += 1
             continue
 
-        subject, html = _build_digest_html(u, overdue, today)
+        # AI focus paragraph (best-effort)
+        ai_focus_result = None
+        if is_ai_configured():
+            ctx_parts = [f"Rep: {u.full_name}"]
+            if overdue:
+                ctx_parts.append(f"Overdue tasks: {len(overdue)} — top: " +
+                                 "; ".join(a.subject for a in overdue[:3]))
+            if today_acts:
+                ctx_parts.append(f"Tasks due today: {len(today_acts)} — top: " +
+                                 "; ".join(a.subject for a in today_acts[:3]))
+            if risky_deals:
+                ctx_parts.append("At-risk deals: " + "; ".join(
+                    f"{d.title} ({r.level}, {r.days_since_activity}d quiet)"
+                    for d, r in risky_deals[:5]
+                ))
+            if hot_deals:
+                ctx_parts.append("Hot deals (most active last 7d): " + "; ".join(
+                    f"{d.title} ({d.stage_label})" for d in hot_deals[:3]
+                ))
+            try:
+                ai_focus_result = await daily_focus("\n".join(ctx_parts), db=db)
+            except Exception as e:
+                print(f"[cron] daily_focus failed for {u.email}: {e}")
+
+        subject, html = _build_digest_html(
+            u, overdue, today_acts,
+            risky_deals=risky_deals, hot_deals=hot_deals,
+            ai_focus=ai_focus_result,
+        )
         # Send via SMTP directly (cleanest from async route)
         if is_smtp_configured() and u.email:
             try:

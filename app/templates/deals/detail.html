@@ -148,6 +148,7 @@
   <!-- Sidebar -->
   <div class="space-y-4" x-data="{
     busy: false, error: '', result: null,
+    riskBusy: false, riskError: '', risk: null,
     async suggest() {
       this.busy = true; this.error = ''; this.result = null;
       try {
@@ -161,6 +162,21 @@
         this.error = String(e.message || e);
       } finally {
         this.busy = false;
+      }
+    },
+    async checkRisk() {
+      this.riskBusy = true; this.riskError = ''; this.risk = null;
+      try {
+        const resp = await fetch('/ai-tools/risk/{{ deal.id }}', { method: 'POST' });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || ('HTTP ' + resp.status));
+        }
+        this.risk = await resp.json();
+      } catch (e) {
+        this.riskError = String(e.message || e);
+      } finally {
+        this.riskBusy = false;
       }
     }
   }">
@@ -200,6 +216,54 @@
         </div>
       </template>
       <p x-show="!result && !error && !busy" class="text-xs text-slate-500">Click Suggest — AI analyzes the deal age, stage, last activity, and recommends what to do next.</p>
+    </div>
+
+    <!-- AI Proposal Generator -->
+    <div class="card p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-medium text-sm text-emerald-900 flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+          Proposal
+        </h2>
+      </div>
+      <form method="post" action="/ai-tools/proposal/{{ deal.id }}">
+        <button type="submit" class="btn btn-primary btn-sm w-full">
+          Generate Proposal
+        </button>
+      </form>
+      <p class="text-xs text-slate-500 mt-2">AI drafts a full staffing proposal using this deal's data + linked meeting MOMs + your company profile.</p>
+    </div>
+
+    <!-- Deal Risk -->
+    <div class="card p-4 bg-gradient-to-br from-rose-50 to-orange-50 border-rose-200">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-medium text-sm text-rose-900 flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Risk Check
+        </h2>
+        <button type="button" @click="checkRisk()" :disabled="riskBusy"
+                class="btn btn-secondary btn-sm disabled:opacity-50">
+          <span x-text="riskBusy ? 'Analyzing…' : (risk ? 'Re-check' : 'Check')"></span>
+        </button>
+      </div>
+      <div x-show="riskError" x-text="riskError" class="text-xs text-red-600"></div>
+      <template x-if="risk">
+        <div class="mt-2 space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="badge text-xs"
+              :class="risk.level === 'high' ? 'bg-red-100 text-red-700' : risk.level === 'medium' ? 'bg-amber-100 text-amber-700' : risk.level === 'low' ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700'"
+              x-text="'● ' + risk.level"></span>
+            <span class="text-xs text-slate-500" x-show="risk.days_since_activity !== null"
+                  x-text="risk.days_since_activity + 'd since activity'"></span>
+          </div>
+          <p class="text-sm text-slate-800" x-text="risk.ai_reason"></p>
+          <div class="p-2 bg-white rounded border border-slate-200">
+            <p class="text-xs text-slate-500 mb-0.5">Recommended action</p>
+            <p class="text-sm font-medium text-slate-900" x-text="risk.ai_action"></p>
+          </div>
+        </div>
+      </template>
+      <p x-show="!risk && !riskError && !riskBusy" class="text-xs text-slate-500">Click Check — rules score risk from activity gap + stage time, AI explains why and what to do.</p>
     </div>
   </div>
 </div>

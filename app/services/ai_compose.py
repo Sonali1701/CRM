@@ -639,3 +639,176 @@ async def draft_followup(activity_summary: str, contact: dict | None = None, db:
         if lines:
             parts.append("Recipient:\n" + "\n".join(lines))
     return await _structured_call(system, "\n\n".join(parts), FOLLOWUP_SCHEMA, temperature=0.5)
+
+
+# ── Capability statement drafter ─────────────────────────────────────────────
+
+CAPABILITY_SYSTEM = """You write a tailored staffing capability statement for an enterprise prospect. The user gives you their target client's industry/domain and optionally a specific use-case or hiring need; you return a structured pitch that explains how WE help that domain.
+
+Rules:
+- Pull from the About-us block — never invent services we don't actually offer.
+- Concrete > generic. If we have a relevant service, name it.
+- 4-6 bullet "key strengths" max; 3-5 sample deliverables.
+- Tone matches our brand voice if provided.
+
+Return JSON with:
+  - capability_summary: 2-3 sentence opening paragraph (positions us for THIS domain)
+  - key_strengths: list of 4-6 short bullets — capabilities most relevant to the prospect's domain
+  - sample_deliverables: list of 3-5 concrete things we'd deliver in a typical engagement for this domain
+  - why_us: ONE crisp differentiator-sentence (why pick us over an obvious competitor)
+"""
+
+CAPABILITY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "capability_summary": {"type": "string"},
+        "key_strengths": {"type": "array", "items": {"type": "string"}},
+        "sample_deliverables": {"type": "array", "items": {"type": "string"}},
+        "why_us": {"type": "string"},
+    },
+    "required": ["capability_summary", "key_strengths", "sample_deliverables"],
+}
+
+
+async def draft_capability(client_domain: str, use_case: str = "", db: Any = None) -> dict:
+    system = CAPABILITY_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = CAPABILITY_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    parts = [f"Target prospect's industry/domain: {client_domain.strip()}"]
+    if use_case.strip():
+        parts.append(f"Specific use-case or hiring need: {use_case.strip()}")
+    return await _structured_call(system, "\n\n".join(parts), CAPABILITY_SCHEMA, temperature=0.5)
+
+
+# ── Proposal generator ──────────────────────────────────────────────────────
+
+PROPOSAL_SYSTEM = """You draft a staffing proposal for a deal in progress. The user gives you the deal state, the client, what was discussed in meetings (including extracted requirements), and our company profile. You return a structured proposal the rep can refine.
+
+Rules:
+- Ground EVERYTHING in the data provided. Don't invent skills/services/numbers.
+- If requirement details (rate, duration, location, count) are missing, write placeholders like [TBD: rate per resource] — don't fabricate.
+- Engagement model + timeline should match what's reasonable for the requirements.
+- Use OUR services (from About-us) as the basis for "our approach".
+- Length: ~250-500 words total across all sections.
+
+Return JSON with:
+  - executive_summary: 2-3 sentence opening that names the client and the headline ask
+  - our_understanding: list of 3-5 bullets restating what we heard from the client
+  - our_approach: 2-3 sentence description of how we'll solve it, grounded in our services
+  - delivery_model: object {engagement_type, team_composition, timeline} — short strings; engagement_type is one of contract / contract-to-hire / managed-team / direct-hire / mixed
+  - sample_profile: a 3-5 line description of the kind of resource(s) we'd put forward
+  - commercials_outline: list of 3-5 bullets on commercials structure (rates as placeholders if unknown)
+  - next_steps: list of 3-5 concrete next actions in order
+"""
+
+PROPOSAL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "executive_summary": {"type": "string"},
+        "our_understanding": {"type": "array", "items": {"type": "string"}},
+        "our_approach": {"type": "string"},
+        "delivery_model": {
+            "type": "object",
+            "properties": {
+                "engagement_type": {"type": "string"},
+                "team_composition": {"type": "string"},
+                "timeline": {"type": "string"},
+            },
+        },
+        "sample_profile": {"type": "string"},
+        "commercials_outline": {"type": "array", "items": {"type": "string"}},
+        "next_steps": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["executive_summary", "our_understanding", "our_approach", "next_steps"],
+}
+
+
+async def generate_proposal(deal_context: str, db: Any = None) -> dict:
+    system = PROPOSAL_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = PROPOSAL_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, deal_context, PROPOSAL_SCHEMA, temperature=0.4)
+
+
+# ── Deal risk explainer (called per deal on demand) ─────────────────────────
+
+RISK_SYSTEM = """A deal in our staffing CRM has been flagged as at risk by rules (no activity / slow stage progression). Explain in plain English (1-2 sentences) WHY it's at risk and recommend ONE concrete action to recover it.
+
+Return JSON with:
+  - reason: why this deal is at risk (1-2 sentences referencing the actual signals)
+  - action: one short imperative recovery action
+  - urgency: "high" | "medium" | "low"
+"""
+
+RISK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reason": {"type": "string"},
+        "action": {"type": "string"},
+        "urgency": {"type": "string", "enum": ["high", "medium", "low"]},
+    },
+    "required": ["reason", "action", "urgency"],
+}
+
+
+async def explain_deal_risk(risk_context: str, db: Any = None) -> dict:
+    system = RISK_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = RISK_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, risk_context, RISK_SCHEMA, temperature=0.3)
+
+
+# ── Daily focus (Smart Daily Briefing) ──────────────────────────────────────
+
+DAILY_FOCUS_SYSTEM = """You are the rep's morning sales coach. Given their pipeline state, overdue tasks, today's tasks, and recent hot accounts, return ONE focused paragraph (2-4 sentences) telling them what to focus on TODAY.
+
+Rules:
+- Lead with the most-urgent thing.
+- Reference specific account/deal names from the data — don't be generic.
+- End with a "do this first" recommendation.
+- No fluff, no greetings — straight to the point. The greeting is already in the email.
+
+Return JSON with:
+  - focus: the paragraph (2-4 sentences)
+  - top_action: one short imperative ("Call Acme — 12 days no contact")
+"""
+
+DAILY_FOCUS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "focus": {"type": "string"},
+        "top_action": {"type": "string"},
+    },
+    "required": ["focus"],
+}
+
+
+async def daily_focus(briefing_context: str, db: Any = None) -> dict:
+    system = DAILY_FOCUS_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = DAILY_FOCUS_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, briefing_context, DAILY_FOCUS_SCHEMA, temperature=0.4)

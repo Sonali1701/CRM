@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Capability Drafter – AI Tools – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/ai-tools" class="text-slate-400 hover:text-slate-600 text-sm">← AI Tools</a>
+    <h1 class="text-xl font-semibold">Capability Statement Drafter</h1>
+  </div>
+
+  <p class="text-sm text-slate-500 mb-4">Enter the prospect's industry or domain (optionally a specific hiring need). The AI returns a tailored capability statement positioning your services for that domain — grounded in your Company Profile so it never invents services you don't offer.</p>
+
+  {% if not ai_enabled %}
+  <div class="card p-4 mb-4 bg-amber-50 border-amber-200 text-sm text-amber-800">
+    No AI provider configured. Set <code>GEMINI_API_KEY</code> or <code>GROQ_API_KEY</code> first.
+  </div>
+  {% endif %}
+
+  <form method="post" action="/ai-tools/capability" class="card p-5 space-y-4 mb-5">
+    <div>
+      <label class="block text-sm font-medium mb-1">Prospect's industry / domain <span class="text-red-500">*</span></label>
+      <input name="client_domain" required class="input text-sm" value="{{ client_domain or '' }}" placeholder="e.g. US healthcare provider, FinTech (BFSI), Engineering R&D" />
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Specific use-case <span class="text-slate-400 font-normal">(optional)</span></label>
+      <textarea name="use_case" rows="3" class="textarea text-sm" placeholder="e.g. Building a 15-person backend engineering pod for an India GCC, with quick ramp-up + onsite-offshore mix.">{{ use_case or '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary" {% if not ai_enabled %}disabled{% endif %}>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
+      Generate Capability
+    </button>
+  </form>
+
+  {% if result %}
+  <div class="card p-5 space-y-5">
+    <div>
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Capability Summary</h3>
+      <p class="text-sm text-slate-800 leading-relaxed">{{ result.capability_summary }}</p>
+    </div>
+
+    {% if result.key_strengths %}
+    <div>
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Key Strengths</h3>
+      <ul class="space-y-1 text-sm text-slate-700">
+        {% for s in result.key_strengths %}
+          <li class="flex gap-2"><span class="text-brand-400">▸</span><span>{{ s }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result.sample_deliverables %}
+    <div>
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Sample Deliverables</h3>
+      <ul class="space-y-1 text-sm text-slate-700">
+        {% for d in result.sample_deliverables %}
+          <li class="flex gap-2"><span class="text-green-500">✓</span><span>{{ d }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if result.why_us %}
+    <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+      <p class="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-1">Why Us</p>
+      <p class="text-sm text-indigo-900">{{ result.why_us }}</p>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-2 pt-1">
+      <button onclick="window.print()" class="btn btn-secondary btn-sm">Print</button>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -23,6 +23,7 @@ from app.models.activity import ActivityType
 from app.services.ai_compose import (
     is_ai_configured, summarize_meeting, analyze_jd,
     handle_objection, generate_brief, draft_followup,
+    draft_capability, generate_proposal, explain_deal_risk,
 )
 from app.templating import templates
 
@@ -430,3 +431,139 @@ async def followup_draft(
         "to": (activity.lead.email if activity.lead else "") or "",
         "lead_id": activity.lead_id,
     }
+
+
+# ── Capability statement drafter ────────────────────────────────────────────
+
+@router.get("/capability")
+def capability_page(request: Request, user: User = Depends(require_user)):
+    return templates.TemplateResponse(request, "ai_tools/capability.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": is_ai_configured(),
+        "result": None, "client_domain": "", "use_case": "",
+    })
+
+
+@router.post("/capability")
+async def capability_post(
+    request: Request,
+    client_domain: str = Form(...),
+    use_case: str = Form(""),
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    _require_ai()
+    if not client_domain.strip():
+        raise HTTPException(400, "Enter the prospect's industry/domain")
+    try:
+        result = await draft_capability(client_domain, use_case, db=db)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    return templates.TemplateResponse(request, "ai_tools/capability.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": True,
+        "result": result, "client_domain": client_domain, "use_case": use_case,
+    })
+
+
+# ── Proposal generator (called from deal page) ──────────────────────────────
+
+def _build_deal_proposal_context(db: Session, deal: Deal) -> str:
+    """Assemble deal + client + recent activities + extracted requirements
+    into a plain-text block for the proposal LLM call."""
+    lines = [f"# Deal: {deal.title}"]
+    bits = [
+        f"stage: {deal.stage_label}",
+        f"value: {deal.value} {deal.currency}",
+        f"probability: {deal.probability}%",
+    ]
+    if deal.expected_close_date:
+        bits.append(f"target close: {deal.expected_close_date}")
+    lines.append(" · ".join(bits))
+    if deal.notes:
+        lines.append(f"\nDeal notes:\n{deal.notes}")
+
+    # Client
+    if deal.client_id:
+        client = db.get(Client, deal.client_id)
+        if client:
+            lines.append(f"\n## Client: {client.name}")
+            cbits = []
+            if client.industry: cbits.append(f"industry: {client.industry}")
+            hq = ", ".join(filter(None, [client.hq_city, client.hq_state, client.hq_country]))
+            if hq: cbits.append(f"HQ: {hq}")
+            if cbits: lines.append(" · ".join(cbits))
+            if client.description: lines.append(f"\n{client.description}")
+
+    # Recent activities — especially any auto-MOMs from meeting summarizer
+    recent_acts = (
+        db.query(Activity)
+        .filter(
+            (Activity.deal_id == deal.id) | (Activity.client_id == deal.client_id),
+        )
+        .order_by(Activity.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    if recent_acts:
+        lines.append("\n## Recent activity / meeting MOMs")
+        for a in recent_acts:
+            date = a.created_at.strftime("%Y-%m-%d") if a.created_at else "?"
+            body = (a.body or "")[:800]
+            lines.append(f"\n--- {date} · {a.type.value} · {a.subject} ---\n{body}")
+
+    return "\n".join(lines)
+
+
+@router.post("/risk/{deal_id}")
+async def risk_explain(
+    deal_id: int,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    _require_ai()
+    deal = db.get(Deal, deal_id)
+    if not deal:
+        raise HTTPException(404)
+    if not user.is_manager and deal.owner_id and deal.owner_id != user.id:
+        raise HTTPException(403)
+    from app.services.deal_risk import compute_risk, risk_context_string
+    risk = compute_risk(deal)
+    context_text = risk_context_string(deal, risk)
+    try:
+        result = await explain_deal_risk(context_text, db=db)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    return {
+        "level": risk.level,
+        "rule_reasons": risk.reasons,
+        "ai_reason": result.get("reason"),
+        "ai_action": result.get("action"),
+        "ai_urgency": result.get("urgency"),
+        "days_since_activity": risk.days_since_activity,
+        "days_in_stage": risk.days_in_stage,
+    }
+
+
+@router.post("/proposal/{deal_id}")
+async def proposal_post(
+    deal_id: int,
+    request: Request,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    _require_ai()
+    deal = db.get(Deal, deal_id)
+    if not deal:
+        raise HTTPException(404)
+    if not user.is_manager and deal.owner_id and deal.owner_id != user.id:
+        raise HTTPException(403)
+    context_text = _build_deal_proposal_context(db, deal)
+    try:
+        result = await generate_proposal(context_text, db=db)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    return templates.TemplateResponse(request, "ai_tools/proposal.html", {
+        "user": user, "flash": get_flash(request),
+        "deal": deal, "result": result,
+    })

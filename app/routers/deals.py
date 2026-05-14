@@ -31,11 +31,15 @@ def deals_list(request: Request, stage: str = "", search: str = "", user: User =
     deals = q.order_by(Deal.updated_at.desc()).all()
     clients = db.query(Client).order_by(Client.name).all()
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
+    # Per-deal risk score keyed by id so the template can lookup with risk_by_id[deal.id]
+    from app.services.deal_risk import compute_risk
+    risk_by_id = {d.id: compute_risk(d) for d in deals}
     return templates.TemplateResponse(request, "deals/list.html", {
         "user": user, "flash": get_flash(request),
         "deals": deals, "clients": clients, "reps": reps,
         "stages": PIPELINE_STAGES, "stage_labels": STAGE_LABELS,
         "filter_stage": stage, "search": search,
+        "risk_by_id": risk_by_id,
     })
 
 

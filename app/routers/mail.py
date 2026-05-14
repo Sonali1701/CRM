@@ -491,16 +491,17 @@ async def mail_sync(
     return flash(RedirectResponse(redirect_to, 303), "Mail synced")
 
 
-# Public endpoint for uptime/automation; protected by a shared key for security
-@router.post("/sync-all")
+# Public endpoint for uptime/automation; protected by a shared key for security.
+# Accepts GET or POST; key via X-Sync-Key header OR ?key=... query param.
+@router.api_route("/sync-all", methods=["GET", "POST"])
 async def mail_sync_all(
     request: Request,
     db: Session = Depends(get_db),
 ):
     settings = get_settings()
-    key = request.headers.get("X-Sync-Key")
+    key = request.headers.get("X-Sync-Key") or request.query_params.get("key")
     if not settings.mail_sync_key or key != settings.mail_sync_key:
-        raise HTTPException(403)
+        raise HTTPException(403, "Bad or missing key — pass X-Sync-Key header or ?key=... query param")
 
     accounts = db.query(MailAccount).all()
     for acc in accounts:

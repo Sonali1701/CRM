@@ -28,10 +28,15 @@ router = APIRouter()
 
 
 def _check_key(request: Request) -> None:
+    """Accept the auth key from either:
+      - X-Cron-Key header (preferred)
+      - ?key=<value> URL query parameter (convenient for cron-job.org
+        which lets you paste a URL but not custom headers on the free tier)
+    """
     settings = get_settings()
-    key = request.headers.get("X-Cron-Key")
+    key = request.headers.get("X-Cron-Key") or request.query_params.get("key")
     if not settings.mail_sync_key or key != settings.mail_sync_key:
-        raise HTTPException(403, "Bad or missing X-Cron-Key")
+        raise HTTPException(403, "Bad or missing key — pass X-Cron-Key header or ?key=... query param")
 
 
 def _aware(dt: datetime | None) -> datetime | None:
@@ -141,7 +146,7 @@ def _send_via_user_mailbox_or_smtp(db: Session, user: User, subject: str, html: 
     return False
 
 
-@router.post("/cron/daily-reminders")
+@router.api_route("/cron/daily-reminders", methods=["GET", "POST"])
 async def daily_reminders(request: Request, db: Session = Depends(get_db)):
     """Email each active user their daily focus: AI summary at the top, then
     overdue / due-today tasks, at-risk deals, and hot deals."""
@@ -271,7 +276,7 @@ async def daily_reminders(request: Request, db: Session = Depends(get_db)):
 
 # ── Email sequence runner ─────────────────────────────────────────────────────
 
-@router.post("/cron/run-sequences")
+@router.api_route("/cron/run-sequences", methods=["GET", "POST"])
 async def run_sequences(request: Request, db: Session = Depends(get_db)):
     """Fire any sequence steps that are due. Idempotent — running twice in the
     same minute won't double-send because next_send_at is advanced after each step."""

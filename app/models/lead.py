@@ -1,7 +1,7 @@
 import enum
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 
-from sqlalchemy import String, Enum, DateTime, ForeignKey, Text
+from sqlalchemy import String, Enum, DateTime, Date, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -56,6 +56,15 @@ class Lead(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    # AI-classified outreach outcome based on Lead.notes — cached so we don't
+    # re-classify on every list/detail render. Refreshed by /ai-tools/outreach.
+    outreach_category: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    outreach_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    outreach_suggested_poc: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    outreach_reconnect_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    outreach_notes_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    outreach_classified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     client = relationship("Client", foreign_keys=[client_id])
     owner = relationship("User", back_populates="leads", foreign_keys=[owner_id])

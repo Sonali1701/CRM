@@ -1209,3 +1209,72 @@ async def draft_close_plan(deal_context: str, db: Any = None) -> dict:
         except Exception:
             pass
     return await _structured_call(system, deal_context, CLOSE_PLAN_SCHEMA, temperature=0.3)
+
+
+# ── Outreach notes classifier (batch) ───────────────────────────────────────
+
+OUTREACH_CATEGORIES = [
+    "info_sent",            # asked to send email/info — weak engagement
+    "not_interested_now",   # no empanelment / no requirements right now
+    "wrong_poc",            # wrong person; suggests another POC
+    "out_of_org",           # person left / laid off / no longer there
+    "reconnect_later",      # explicit "ping me later" with a date or relative time
+    "in_house_only",        # they handle hiring internally; no vendors
+    "positive",             # active interest / next step agreed
+    "no_outcome",           # note exists but no clear outcome
+]
+
+OUTREACH_SYSTEM = """You classify B2B sales outreach notes (one per contact). For each note, return a single category that best describes the outcome, plus any structured fields the note mentions.
+
+Categories (pick exactly one):
+- "info_sent": rep was asked to email company info / details / capability deck — weak positive engagement
+- "not_interested_now": no vendor empanelment / no requirements / generic decline
+- "wrong_poc": contact says they are not the right person — usually suggests an alternate
+- "out_of_org": contact has left the company, was laid off, or no longer works there
+- "reconnect_later": contact explicitly asked to be contacted later — usually with a date or "after N months"
+- "in_house_only": hiring/work handled internally; no external partners onboarded
+- "positive": clear forward momentum — meeting agreed, sample profiles requested, proposal asked for, etc.
+- "no_outcome": note doesn't indicate a clear outcome
+
+For "reconnect_later", parse a target ISO date when possible (YYYY-MM-DD or YYYY-MM if only month given). Examples: "June 2027" → "2027-06". "After 6 months" with note dated today → today+6mo. "Next quarter" → leave empty if unclear.
+
+For "wrong_poc", extract the suggested alternate person's name if mentioned (else empty).
+
+Return JSON:
+  - results: array of {note_id, category, reconnect_date (ISO or empty), suggested_poc_name (or empty), key_reason (one short sentence)}
+
+Process EVERY note in the input. Preserve note_id exactly. If a note is empty or just whitespace, classify as "no_outcome"."""
+
+OUTREACH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "note_id": {"type": "integer"},
+                    "category": {"type": "string", "enum": OUTREACH_CATEGORIES},
+                    "reconnect_date": {"type": "string"},
+                    "suggested_poc_name": {"type": "string"},
+                    "key_reason": {"type": "string"},
+                },
+                "required": ["note_id", "category"],
+            },
+        },
+    },
+    "required": ["results"],
+}
+
+
+async def classify_outreach_notes(notes: list[dict], db: Any = None) -> dict:
+    """Classify a batch of outreach notes.
+    `notes` is a list of {note_id: int, text: str}. Returns dict with 'results'."""
+    if not notes:
+        return {"results": []}
+    lines = []
+    for n in notes:
+        body = (n.get("text") or "").replace("\n", " ").strip()[:600]
+        lines.append(f"[note_id={n['note_id']}] {body}")
+    user_block = "Today's date is the date the notes were written (assume relative dates are anchored there).\n\nNotes:\n" + "\n".join(lines)
+    return await _structured_call(OUTREACH_SYSTEM, user_block, OUTREACH_SCHEMA, temperature=0.1)

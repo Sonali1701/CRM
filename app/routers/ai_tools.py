@@ -26,6 +26,7 @@ from app.services.ai_compose import (
     draft_capability, generate_proposal, explain_deal_risk,
     daily_focus, map_stakeholders, draft_social_messages,
     draft_sow, analyze_winloss, advise_strategy, coach_rep,
+    classify_outreach_notes,
 )
 from app.models.deal import DealStage, OPEN_STAGES, STAGE_LABELS
 from app.services.deal_risk import compute_risk
@@ -988,3 +989,195 @@ async def coach_page(request: Request, user: User = Depends(require_user), db: S
         "ai_enabled": is_ai_configured(),
         "raw_context": ctx, "result": result,
     })
+
+
+# ── Outreach Insights (classifies free-text outreach notes across contacts) ──
+
+OUTREACH_CATEGORY_LABELS = {
+    "info_sent": ("Info requested", "Asked us to send company info — weak positive"),
+    "not_interested_now": ("Not interested now", "No empanelment / no requirements"),
+    "wrong_poc": ("Wrong POC", "Suggested a different person"),
+    "out_of_org": ("Out of org", "Left company / laid off"),
+    "reconnect_later": ("Reconnect later", "Asked to be pinged at a future date"),
+    "in_house_only": ("In-house only", "They hire internally; no vendors"),
+    "positive": ("Positive", "Active engagement / forward momentum"),
+    "no_outcome": ("No clear outcome", "Note exists but signal unclear"),
+}
+
+OUTREACH_CATEGORY_TONES = {
+    "positive": "bg-emerald-100 text-emerald-700",
+    "info_sent": "bg-blue-100 text-blue-700",
+    "reconnect_later": "bg-indigo-100 text-indigo-700",
+    "wrong_poc": "bg-amber-100 text-amber-700",
+    "not_interested_now": "bg-slate-100 text-slate-600",
+    "in_house_only": "bg-slate-100 text-slate-600",
+    "out_of_org": "bg-red-100 text-red-700",
+    "no_outcome": "bg-slate-100 text-slate-400",
+}
+
+
+def _parse_iso_date(s: str):
+    """Accept 'YYYY-MM-DD' or 'YYYY-MM'. Returns date or None."""
+    s = (s or "").strip()
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%d", "%Y-%m"):
+        try:
+            from datetime import datetime as _dt
+            return _dt.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _notes_hash(text: str | None) -> str:
+    """Short stable hash of a note — used to detect whether re-classification
+    is needed since last AI call."""
+    import hashlib
+    return hashlib.sha1((text or "").strip().encode("utf-8")).hexdigest()[:16] if text else ""
+
+
+@router.get("/outreach")
+async def outreach_insights(
+    request: Request,
+    force: str = "",
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    """Classify outreach notes across leads. Only leads whose notes have
+    CHANGED since last classification are re-sent to AI (or all of them
+    if `force=1`). Results are persisted on Lead.* so other tabs read
+    from cache without burning AI quota."""
+    _require_ai()
+
+    q = db.query(Lead).filter(Lead.notes.isnot(None), Lead.notes != "")
+    if not user.is_manager:
+        q = q.filter(Lead.owner_id == user.id)
+    leads = q.order_by(Lead.updated_at.desc()).limit(500).all()
+
+    if not leads:
+        return templates.TemplateResponse(request, "ai_tools/outreach.html", {
+            "user": user, "flash": get_flash(request),
+            "ai_enabled": True,
+            "rows": [], "totals": {}, "buckets": {},
+            "category_labels": OUTREACH_CATEGORY_LABELS,
+            "category_tones": OUTREACH_CATEGORY_TONES,
+            "empty_reason": "No contacts have notes yet. Add outreach notes on contacts to see insights here.",
+            "stale_count": 0, "fresh_count": 0,
+        })
+
+    force_all = bool(force)
+    to_classify: list[Lead] = []
+    fresh_count = 0
+    for lead in leads:
+        current_hash = _notes_hash(lead.notes)
+        if force_all or not lead.outreach_category or lead.outreach_notes_hash != current_hash:
+            to_classify.append(lead)
+        else:
+            fresh_count += 1
+
+    # Batch-classify only the stale ones
+    if to_classify:
+        chunk_size = 25
+        by_id: dict[int, dict] = {}
+        for i in range(0, len(to_classify), chunk_size):
+            chunk = to_classify[i:i + chunk_size]
+            try:
+                result = await classify_outreach_notes(
+                    [{"note_id": l.id, "text": l.notes} for l in chunk], db=db,
+                )
+            except RuntimeError as e:
+                raise HTTPException(502, str(e))
+            for r in (result.get("results") or []):
+                by_id[int(r.get("note_id"))] = r
+
+        now = datetime.now(timezone.utc)
+        for lead in to_classify:
+            cls = by_id.get(lead.id) or {"category": "no_outcome"}
+            lead.outreach_category = cls.get("category", "no_outcome")
+            lead.outreach_summary = (cls.get("key_reason") or "").strip() or None
+            lead.outreach_suggested_poc = (cls.get("suggested_poc_name") or "").strip() or None
+            lead.outreach_reconnect_date = _parse_iso_date(cls.get("reconnect_date", ""))
+            lead.outreach_notes_hash = _notes_hash(lead.notes)
+            lead.outreach_classified_at = now
+        db.commit()
+
+    # Build view rows from the now-cached fields
+    rows = []
+    for lead in leads:
+        rows.append({
+            "lead": lead,
+            "note_text": lead.notes or "",
+            "category": lead.outreach_category or "no_outcome",
+            "reconnect_date": lead.outreach_reconnect_date,
+            "suggested_poc_name": lead.outreach_suggested_poc or "",
+            "key_reason": lead.outreach_summary or "",
+        })
+
+    buckets: dict[str, list] = {k: [] for k in OUTREACH_CATEGORY_LABELS.keys()}
+    for r in rows:
+        buckets.setdefault(r["category"], []).append(r)
+
+    totals = {"analyzed": len(rows)}
+    for k, v in buckets.items():
+        totals[k] = len(v)
+
+    buckets["reconnect_later"].sort(key=lambda r: (r["reconnect_date"] is None, r["reconnect_date"]))
+
+    return templates.TemplateResponse(request, "ai_tools/outreach.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": True,
+        "rows": rows, "totals": totals, "buckets": buckets,
+        "category_labels": OUTREACH_CATEGORY_LABELS,
+        "category_tones": OUTREACH_CATEGORY_TONES,
+        "empty_reason": None,
+        "stale_count": len(to_classify),
+        "fresh_count": fresh_count,
+    })
+
+
+@router.post("/outreach/mark-inactive/{lead_id}")
+def outreach_mark_inactive(
+    lead_id: int,
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    """One-click: mark a contact as Disqualified (used for out-of-org cases)."""
+    from app.models.lead import LeadStatus
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(404)
+    if not user.is_manager and lead.owner_id and lead.owner_id != user.id:
+        raise HTTPException(403)
+    lead.status = LeadStatus.DISQUALIFIED
+    db.commit()
+    return flash(RedirectResponse("/ai-tools/outreach", 303), f"{lead.name} marked disqualified.", "error")
+
+
+@router.post("/outreach/schedule-reconnect/{lead_id}")
+def outreach_schedule_reconnect(
+    lead_id: int,
+    reconnect_date: str = Form(""),
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    """One-click: create a TASK reminder on the parsed reconnect date."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(404)
+    if not user.is_manager and lead.owner_id and lead.owner_id != user.id:
+        raise HTTPException(403)
+    parsed = _parse_iso_date(reconnect_date)
+    if not parsed:
+        raise HTTPException(400, "Need a valid reconnect date")
+    due = datetime.combine(parsed, datetime.min.time()).replace(tzinfo=timezone.utc)
+    task = Activity(
+        type=ActivityType.TASK,
+        subject=f"Reconnect with {lead.name}",
+        body=f"Auto-scheduled from outreach insights — {lead.company or 'no company'} asked to be pinged on {parsed.strftime('%b %Y')}.",
+        client_id=lead.client_id,
+        lead_id=lead.id,
+        created_by_id=user.id,
+        due_at=due,
+        completed=False,
+    )
+    db.add(task)
+    db.commit()
+    return flash(RedirectResponse("/ai-tools/outreach", 303), f"Reconnect task scheduled for {parsed.strftime('%b %d, %Y')}.")

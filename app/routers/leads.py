@@ -229,7 +229,12 @@ def lead_update(
     lead.state = state or None
     lead.country = country or None
     lead.source = source or None
-    lead.notes = notes or None
+    # If notes changed, invalidate the cached outreach classification so the
+    # next visit to Outreach Insights re-classifies this contact.
+    new_notes = notes or None
+    if (lead.notes or "") != (new_notes or ""):
+        lead.outreach_notes_hash = None
+    lead.notes = new_notes
     lead.status = LeadStatus(status)
     if user.is_manager:
         lead.owner_id = int(owner_id) if owner_id.strip().isdigit() else None

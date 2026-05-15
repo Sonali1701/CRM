@@ -420,6 +420,21 @@
     </div>
 
     <!-- Contacts (leads linked to this company) -->
+    {% set outreach_tones = {
+      'positive': 'bg-emerald-100 text-emerald-700',
+      'info_sent': 'bg-blue-100 text-blue-700',
+      'reconnect_later': 'bg-indigo-100 text-indigo-700',
+      'wrong_poc': 'bg-amber-100 text-amber-700',
+      'not_interested_now': 'bg-slate-100 text-slate-600',
+      'in_house_only': 'bg-slate-100 text-slate-600',
+      'out_of_org': 'bg-red-100 text-red-700',
+      'no_outcome': 'bg-slate-50 text-slate-400',
+    } %}
+    {% set outreach_short = {
+      'positive': 'Positive', 'info_sent': 'Info sent', 'reconnect_later': 'Reconnect',
+      'wrong_poc': 'Wrong POC', 'not_interested_now': 'Not now', 'in_house_only': 'In-house',
+      'out_of_org': 'Out of org', 'no_outcome': '—',
+    } %}
     <div class="card p-4">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-semibold text-sm text-slate-700">People ({{ linked_leads | length }})</h2>
@@ -438,6 +453,16 @@
                   <a href="mailto:{{ lead.email }}" class="text-xs text-slate-400 hover:text-brand-600 truncate block">{{ lead.email }}</a>
                 {% endif %}
                 {% if lead.mobile %}<p class="text-xs text-slate-400">{{ lead.mobile }}</p>{% endif %}
+                {% if lead.outreach_category and lead.outreach_category != 'no_outcome' %}
+                  <span class="badge text-xs mt-1 inline-block {{ outreach_tones.get(lead.outreach_category, 'bg-slate-100 text-slate-500') }}"
+                        title="{{ lead.outreach_summary or '' }}">
+                    {{ outreach_short.get(lead.outreach_category, lead.outreach_category) }}
+                    {% if lead.outreach_reconnect_date %} · {{ lead.outreach_reconnect_date.strftime('%b %Y') }}{% endif %}
+                  </span>
+                {% endif %}
+                {% if lead.notes %}
+                  <p class="text-xs text-slate-600 mt-1 line-clamp-2" title="{{ lead.notes }}">{{ lead.notes[:160] }}{% if lead.notes|length > 160 %}…{% endif %}</p>
+                {% endif %}
               </div>
               <span class="badge badge-{{ lead.status.value }} flex-shrink-0 text-xs">{{ lead.status.value | humanize }}</span>
             </div>

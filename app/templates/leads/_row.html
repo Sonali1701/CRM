@@ -1,3 +1,23 @@
+{% set outreach_tones = {
+  'positive': 'bg-emerald-100 text-emerald-700',
+  'info_sent': 'bg-blue-100 text-blue-700',
+  'reconnect_later': 'bg-indigo-100 text-indigo-700',
+  'wrong_poc': 'bg-amber-100 text-amber-700',
+  'not_interested_now': 'bg-slate-100 text-slate-600',
+  'in_house_only': 'bg-slate-100 text-slate-600',
+  'out_of_org': 'bg-red-100 text-red-700',
+  'no_outcome': 'bg-slate-50 text-slate-400',
+} %}
+{% set outreach_short = {
+  'positive': 'Positive',
+  'info_sent': 'Info sent',
+  'reconnect_later': 'Reconnect',
+  'wrong_poc': 'Wrong POC',
+  'not_interested_now': 'Not now',
+  'in_house_only': 'In-house',
+  'out_of_org': 'Out of org',
+  'no_outcome': '—',
+} %}
 <tr data-lead-id="{{ lead.id }}"
     data-lead-first="{{ lead.first_name | e }}"
     data-lead-last="{{ (lead.last_name or '') | e }}"
@@ -61,6 +81,22 @@
   </td>
   <td class="text-slate-500 text-xs whitespace-nowrap" title="{{ lead.created_at }}">
     {% if lead.created_at %}{{ lead.created_at | date }}{% else %}—{% endif %}
+  </td>
+  <td class="max-w-[260px]">
+    {% if lead.notes %}
+      <div class="flex flex-col gap-1">
+        {% if lead.outreach_category %}
+        <span class="badge text-xs w-fit {{ outreach_tones.get(lead.outreach_category, 'bg-slate-100 text-slate-500') }}"
+              title="{{ lead.outreach_summary or '' }}{% if lead.outreach_reconnect_date %} · reconnect {{ lead.outreach_reconnect_date.strftime('%b %Y') }}{% endif %}{% if lead.outreach_suggested_poc %} · alt POC: {{ lead.outreach_suggested_poc }}{% endif %}">
+          {{ outreach_short.get(lead.outreach_category, lead.outreach_category) }}
+          {% if lead.outreach_reconnect_date %} · {{ lead.outreach_reconnect_date.strftime('%b %Y') }}{% endif %}
+        </span>
+        {% endif %}
+        <span class="text-xs text-slate-500 line-clamp-2" title="{{ lead.notes }}">{{ lead.notes[:180] }}{% if lead.notes|length > 180 %}…{% endif %}</span>
+      </div>
+    {% else %}
+      <span class="text-xs text-slate-300">—</span>
+    {% endif %}
   </td>
   <td>
     <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm" title="View &amp; edit full details">View</a>

@@ -15,6 +15,11 @@
       <div class="flex items-center gap-2 mt-0.5">
         <span class="badge bg-slate-100 text-slate-600">{{ client.type.value | humanize }}</span>
         {% if client.industry %}<span class="text-sm text-slate-500">{{ client.industry }}</span>{% endif %}
+        {% if client.created_at %}
+          <span class="text-xs text-slate-400" title="Created {{ client.created_at }}{% if client.updated_at and client.updated_at != client.created_at %} · updated {{ client.updated_at }}{% endif %}">
+            · Added {{ client.created_at | date }}
+          </span>
+        {% endif %}
         {% if client.website %}
           <a href="{{ client.website }}" target="_blank" class="text-xs text-brand-600 hover:underline flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -35,9 +40,52 @@
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
       AI Brief
     </a>
+    <a href="/ai-tools/stakeholders/{{ client.id }}" class="btn btn-secondary" title="AI stakeholder map">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Stakeholders
+    </a>
     <a href="/deals/new?client_id={{ client.id }}" class="btn btn-primary">+ New Deal</a>
   </div>
 </div>
+
+{% if penetration %}
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
+  <div class="card p-3">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Open pipeline</p>
+    <p class="text-lg font-semibold text-brand-600">{{ penetration.open_value | currency }}</p>
+    <p class="text-xs text-slate-400">{{ penetration.open_count }} deal{{ '' if penetration.open_count == 1 else 's' }}</p>
+  </div>
+  <div class="card p-3">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Won</p>
+    <p class="text-lg font-semibold text-emerald-600">{{ penetration.won_value | currency }}</p>
+    <p class="text-xs text-slate-400">{{ penetration.won_count }} won · {{ penetration.lost_count }} lost</p>
+  </div>
+  <div class="card p-3">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Win rate</p>
+    <p class="text-lg font-semibold text-slate-900">{% if penetration.win_rate is not none %}{{ '%.0f' | format(penetration.win_rate) }}%{% else %}—{% endif %}</p>
+    <p class="text-xs text-slate-400">on this account</p>
+  </div>
+  <div class="card p-3">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Contacts</p>
+    <p class="text-lg font-semibold text-slate-900">{{ penetration.contact_count }}</p>
+    <p class="text-xs text-slate-400">{{ penetration.qualified_contact_count }} qualified+</p>
+  </div>
+  <div class="card p-3">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Activity (30d)</p>
+    <p class="text-lg font-semibold text-slate-900">{{ penetration.acts_30d }}</p>
+    <p class="text-xs text-slate-400">touches</p>
+  </div>
+  <div class="card p-3">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Last touch</p>
+    {% if penetration.days_quiet is none %}
+      <p class="text-lg font-semibold text-slate-400">Never</p>
+    {% else %}
+      <p class="text-lg font-semibold {% if penetration.days_quiet >= 30 %}text-red-600{% elif penetration.days_quiet >= 14 %}text-amber-600{% else %}text-slate-900{% endif %}">{{ penetration.days_quiet }}d ago</p>
+    {% endif %}
+    <p class="text-xs text-slate-400">{% if penetration.last_activity_at %}{{ penetration.last_activity_at | date }}{% else %}—{% endif %}</p>
+  </div>
+</div>
+{% endif %}
 
 <div class="grid lg:grid-cols-3 gap-6">
   <!-- Left: Details + Activities -->
@@ -127,6 +175,48 @@
       </form>
     </div>
 
+    <!-- Account Plan -->
+    {% set plan_sections = [
+      ('business_goals', "Business goals", "What is the client trying to achieve?"),
+      ('whitespace', "Whitespace", "Where can we expand? New teams, regions, services."),
+      ('key_stakeholders', "Key stakeholders", "Who matters here and where they stand."),
+      ('threats_risks', "Threats & risks", "Competitive moves, budget freezes, restructures."),
+      ('next_90d_actions', "Next 90-day actions", "Concrete plays to run."),
+      ('success_metrics', "Success metrics", "How we know it's working."),
+    ] %}
+    <div class="card p-5" id="account-plan">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-sm text-slate-700">Account Plan
+          {% if account_plan and account_plan.updated_at %}
+            <span class="text-xs text-slate-400 font-normal ml-2">updated {{ account_plan.updated_at | date }}</span>
+          {% endif %}
+        </h2>
+        <form method="post" action="/clients/{{ client.id }}/account-plan/ai-draft" class="flex items-center gap-2">
+          {% if account_plan %}
+          <label class="text-xs text-slate-500 flex items-center gap-1">
+            <input type="checkbox" name="overwrite" value="1" class="rounded" />
+            Overwrite filled sections
+          </label>
+          {% endif %}
+          <button type="submit" class="btn btn-secondary btn-sm" title="AI draft from open deals + recent activity">
+            AI draft
+          </button>
+        </form>
+      </div>
+      <form method="post" action="/clients/{{ client.id }}/account-plan" class="space-y-4">
+        {% for field, label, hint in plan_sections %}
+          <div>
+            <div class="flex items-baseline justify-between">
+              <label class="block text-sm font-medium">{{ label }}</label>
+              <span class="text-xs text-slate-400">{{ hint }}</span>
+            </div>
+            <textarea name="{{ field }}" rows="3" class="textarea text-sm">{{ account_plan[field] or '' if account_plan else '' }}</textarea>
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary btn-sm">Save account plan</button>
+      </form>
+    </div>
+
     <!-- Activities -->
     <div class="card p-5">
       <div class="flex items-center justify-between mb-4">
@@ -168,12 +258,17 @@
       {% if activities %}
         <div class="space-y-0">
           {% for act in activities %}
+            {% set is_inbound = act.id in inbound_ids %}
             <div class="flex gap-3 pb-4 {% if not loop.last %}border-b border-slate-100 mb-4{% endif %}">
               <!-- Icon -->
               <div class="flex-shrink-0 mt-0.5">
                 {% if act.type.value == 'call' %}
                   <div class="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center">
                     <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 12 19.79 19.79 0 0 1 1.15 3.18 2 2 0 0 1 3.12 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.09a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </div>
+                {% elif act.type.value == 'email' and is_inbound %}
+                  <div class="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center" title="Reply received">
+                    <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
                   </div>
                 {% elif act.type.value == 'email' %}
                   <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
@@ -197,17 +292,20 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
-                    <p class="text-sm font-medium text-slate-900">{{ act.subject }}</p>
+                    <div class="flex items-center gap-2">
+                      {% if is_inbound %}<span class="badge bg-emerald-100 text-emerald-700 text-[10px] uppercase tracking-wide">Reply</span>{% endif %}
+                      <p class="text-sm font-medium text-slate-900">{{ act.subject }}</p>
+                    </div>
                     {% if act.type.value == 'email' and act.lead %}
                       <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 mt-1">
                         <span>
-                          <span class="text-slate-400">To:</span>
+                          <span class="text-slate-400">{% if is_inbound %}From:{% else %}To:{% endif %}</span>
                           <a href="/leads/{{ act.lead.id }}" class="text-slate-700 hover:text-brand-600 font-medium">{{ act.lead.name }}</a>
                           {% if act.lead.email %}<span class="text-slate-400">&lt;{{ act.lead.email }}&gt;</span>{% endif %}
                         </span>
-                        {% if act.created_by %}
+                        {% if act.created_by and not is_inbound %}
                           <span>
-                            <span class="text-slate-400">From:</span>
+                            <span class="text-slate-400">By:</span>
                             <span class="text-slate-700">{{ act.created_by.full_name }}</span>
                           </span>
                         {% endif %}
@@ -221,7 +319,7 @@
                   </div>
                   <div class="flex-shrink-0 text-right">
                     {% if act.completed %}
-                      <span class="badge bg-green-100 text-green-700">{% if act.type.value == 'email' %}Sent{% else %}Done{% endif %}</span>
+                      <span class="badge bg-green-100 text-green-700">{% if act.type.value == 'email' %}{% if is_inbound %}Received{% else %}Sent{% endif %}{% else %}Done{% endif %}</span>
                     {% elif act.due_at %}
                       <span class="text-xs text-slate-400">Due {{ act.due_at | date }}</span>
                     {% endif %}

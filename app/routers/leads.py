@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import require_user
 from app.flash import flash, get_flash
-from app.models import User, Lead, Client
+from app.models import User, Lead, Client, Activity, EmailMessage
 from app.models.lead import LeadStatus
+from app.models.sequence import SequenceEnrollment
 from app.templating import templates
 
 router = APIRouter()
@@ -33,6 +34,41 @@ def _resolve_client_id(db: Session, explicit_id: int | None, company_name: str |
         if match:
             return match.id, match.name
     return None, company_name
+
+
+def find_lead_duplicate(
+    db: Session, email: str | None, first_name: str | None,
+    last_name: str | None, company: str | None,
+    exclude_id: int | None = None,
+) -> Lead | None:
+    """Look up an existing lead that's almost certainly the same person.
+    Match priority:
+      1. Exact email match (case-insensitive) — strongest signal
+      2. Same first+last name AND same company (case-insensitive) — fallback
+    Returns None if nothing convincing is found."""
+    if email and email.strip():
+        q = db.query(Lead).filter(Lead.email.ilike(email.strip()))
+        if exclude_id:
+            q = q.filter(Lead.id != exclude_id)
+        match = q.first()
+        if match:
+            return match
+    fn = (first_name or "").strip()
+    ln = (last_name or "").strip()
+    co = (company or "").strip()
+    if fn and ln and co:
+        q = (
+            db.query(Lead)
+            .filter(
+                Lead.first_name.ilike(fn),
+                Lead.last_name.ilike(ln),
+                Lead.company.ilike(co),
+            )
+        )
+        if exclude_id:
+            q = q.filter(Lead.id != exclude_id)
+        return q.first()
+    return None
 
 
 @router.get("")
@@ -73,7 +109,17 @@ def leads_delete_all(user: User = Depends(require_user), db: Session = Depends(g
     if not user.is_admin:
         from fastapi import HTTPException
         raise HTTPException(403, "Admin only")
-    count = db.query(Lead).delete()
+    # Detach dependents first — bulk delete bypasses ORM cascades, and FKs in
+    # activities/email_messages are nullable (the records may still link to a
+    # deal/client and are worth keeping).
+    db.query(Activity).filter(Activity.lead_id.isnot(None)).update(
+        {Activity.lead_id: None}, synchronize_session=False
+    )
+    db.query(EmailMessage).filter(EmailMessage.lead_id.isnot(None)).update(
+        {EmailMessage.lead_id: None}, synchronize_session=False
+    )
+    db.query(SequenceEnrollment).delete(synchronize_session=False)
+    count = db.query(Lead).delete(synchronize_session=False)
     db.commit()
     return flash(RedirectResponse("/leads", 303), f"Deleted {count} contacts.", "error")
 
@@ -100,8 +146,30 @@ def lead_create(
     city: str = Form(""), state: str = Form(""), country: str = Form(""),
     source: str = Form(""), notes: str = Form(""),
     owner_id: str = Form(""),
+    force_create: str = Form(""),
     user: User = Depends(require_user), db: Session = Depends(get_db),
 ):
+    # Duplicate detection: block by default; user can override by re-submitting
+    # with the "Create anyway" checkbox.
+    if not force_create:
+        dup = find_lead_duplicate(db, email, first_name, last_name, company)
+        if dup:
+            reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
+            clients = db.query(Client).order_by(Client.name).all()
+            match_basis = "email" if (email and dup.email and email.strip().lower() == dup.email.lower()) else "name + company"
+            return templates.TemplateResponse(request, "leads/form.html", {
+                "user": user, "lead": None,
+                "reps": reps, "statuses": list(LeadStatus), "clients": clients,
+                "form_values": {
+                    "first_name": first_name, "last_name": last_name, "job_title": job_title,
+                    "company": company, "client_id": client_id, "email": email,
+                    "mobile": mobile, "phone": phone, "linkedin_url": linkedin_url,
+                    "city": city, "state": state, "country": country,
+                    "source": source, "notes": notes, "owner_id": owner_id,
+                },
+                "duplicate": {"lead": dup, "match_basis": match_basis},
+            })
+
     owner = int(owner_id) if owner_id.strip().isdigit() else None
     explicit_cid = int(client_id) if client_id.strip().isdigit() else None
     cid, resolved_company = _resolve_client_id(db, explicit_cid, company or None)

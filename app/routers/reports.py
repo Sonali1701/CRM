@@ -3,7 +3,7 @@ conversion funnel, recent activity volume.
 
 Managers see org-wide numbers; reps see only their own."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Request
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import require_user
 from app.flash import get_flash
-from app.models import User, Deal, Activity, Lead
+from app.models import User, Deal, Activity, Lead, Client
 from app.models.deal import DealStage, OPEN_STAGES, STAGE_LABELS
 from app.models.activity import ActivityType
 from app.models.lead import LeadStatus
@@ -21,6 +21,26 @@ from app.templating import templates
 
 
 router = APIRouter()
+
+
+# Stage-based win probability used for revenue forecasting when a deal
+# doesn't have its own per-deal probability set.
+_STAGE_PROBABILITY = {
+    DealStage.LEAD_GENERATED: 5,
+    DealStage.QUALIFIED: 15,
+    DealStage.DISCOVERY_DONE: 30,
+    DealStage.REQUIREMENT_RECEIVED: 45,
+    DealStage.PROPOSAL_SHARED: 60,
+    DealStage.NEGOTIATION: 80,
+}
+
+
+def _deal_probability(d: Deal) -> int:
+    """Use the per-deal probability if the user set one; otherwise fall back
+    to the stage-based default."""
+    if d.probability and d.probability > 0:
+        return int(d.probability)
+    return _STAGE_PROBABILITY.get(d.stage, 0)
 
 
 @router.get("/reports")
@@ -143,6 +163,92 @@ async def reports(request: Request, user: User = Depends(require_user), db: Sess
         except Exception as e:
             print(f"[reports] narration failed: {e}")
 
+    # Revenue forecast: probability-weighted open pipeline by close month
+    forecast_rows: list[dict] = []
+    forecast_buckets: dict[str, dict] = {}
+    forecast_unscheduled = {"label": "No close date", "value": 0.0, "weighted": 0.0, "count": 0}
+    for d in open_deals:
+        val = float(d.value or 0)
+        prob = _deal_probability(d)
+        weighted = val * prob / 100.0
+        if d.expected_close_date:
+            key = d.expected_close_date.strftime("%Y-%m")
+            label = d.expected_close_date.strftime("%b %Y")
+            b = forecast_buckets.setdefault(key, {"label": label, "value": 0.0, "weighted": 0.0, "count": 0})
+            b["value"] += val
+            b["weighted"] += weighted
+            b["count"] += 1
+        else:
+            forecast_unscheduled["value"] += val
+            forecast_unscheduled["weighted"] += weighted
+            forecast_unscheduled["count"] += 1
+    for key in sorted(forecast_buckets.keys()):
+        forecast_rows.append(forecast_buckets[key])
+    if forecast_unscheduled["count"]:
+        forecast_rows.append(forecast_unscheduled)
+    forecast_total_weighted = sum(r["weighted"] for r in forecast_rows)
+
+    # Industry heatmap: open pipeline and win count by industry
+    industry_stats: dict[str, dict] = {}
+    for d in all_deals:
+        ind = (d.client.industry if d.client and d.client.industry else "Unknown")
+        s = industry_stats.setdefault(ind, {"industry": ind, "open_value": 0.0, "open_count": 0, "won_count": 0, "won_value": 0.0, "lost_count": 0})
+        if d.stage in OPEN_STAGES:
+            s["open_value"] += float(d.value or 0)
+            s["open_count"] += 1
+        elif d.stage == DealStage.CLOSED_WON:
+            s["won_value"] += float(d.value or 0)
+            s["won_count"] += 1
+        elif d.stage == DealStage.CLOSED_LOST:
+            s["lost_count"] += 1
+    industry_rows = sorted(industry_stats.values(), key=lambda r: -r["open_value"])
+    max_industry_value = max((r["open_value"] for r in industry_rows), default=1) or 1
+    for r in industry_rows:
+        r["pct"] = int(r["open_value"] / max_industry_value * 100) if max_industry_value else 0
+        closed = r["won_count"] + r["lost_count"]
+        r["win_rate"] = (r["won_count"] / closed * 100) if closed else 0
+
+    # Pipeline monitoring: stalled deals (no activity in 14+ days) + inactive
+    # accounts (clients with open deals but no activity in 30+ days)
+    fourteen_days_ago = now - timedelta(days=14)
+    thirty_days_ago_for_acct = now - timedelta(days=30)
+    stalled_deals = []
+    for d in open_deals:
+        last = _aware(d.last_activity_at)
+        if last is None or last < fourteen_days_ago:
+            stalled_deals.append({
+                "deal": d,
+                "last_activity_at": last,
+                "days_quiet": (now - last).days if last else None,
+            })
+    stalled_deals.sort(key=lambda r: (r["days_quiet"] if r["days_quiet"] is not None else 9999), reverse=True)
+    stalled_deals = stalled_deals[:15]
+
+    # Inactive accounts: clients with at least one open deal whose most-recent
+    # activity (any type) is older than 30 days or absent.
+    client_ids_with_open = {d.client_id for d in open_deals if d.client_id}
+    inactive_accounts: list[dict] = []
+    if client_ids_with_open:
+        last_act_rows = (
+            db.query(Activity.client_id, func.max(Activity.created_at))
+            .filter(Activity.client_id.in_(client_ids_with_open))
+            .group_by(Activity.client_id)
+            .all()
+        )
+        last_by_client = {row[0]: row[1] for row in last_act_rows}
+        for cid in client_ids_with_open:
+            last = _aware(last_by_client.get(cid))
+            if last is None or last < thirty_days_ago_for_acct:
+                client = db.get(Client, cid)
+                if client:
+                    inactive_accounts.append({
+                        "client": client,
+                        "last_activity_at": last,
+                        "days_quiet": (now - last).days if last else None,
+                    })
+        inactive_accounts.sort(key=lambda r: (r["days_quiet"] if r["days_quiet"] is not None else 9999), reverse=True)
+        inactive_accounts = inactive_accounts[:10]
+
     return templates.TemplateResponse(request, "reports/index.html", {
         "user": user,
         "flash": get_flash(request),
@@ -159,4 +265,9 @@ async def reports(request: Request, user: User = Depends(require_user), db: Sess
         "activity_by_type": activity_by_type,
         "activity_total_30d": len(recent_acts),
         "narration": narration,
+        "forecast_rows": forecast_rows,
+        "forecast_total_weighted": forecast_total_weighted,
+        "industry_rows": industry_rows,
+        "stalled_deals": stalled_deals,
+        "inactive_accounts": inactive_accounts,
     })

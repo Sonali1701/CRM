@@ -43,6 +43,7 @@
     <table class="crm crm-compact">
       <thead>
         <tr>
+          <th title="Opportunity score: weighted blend of open pipeline value, deal count, recent activity, and stage progression">Score</th>
           <th>Company</th>
           <th>Type</th>
           <th>Industry</th>
@@ -51,12 +52,22 @@
           <th>Contacts</th>
           <th>Deals</th>
           <th>Owner</th>
+          <th>Added</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         {% for client in clients %}
+          {% set s = scores.get(client.id, {}) %}
+          {% set score = s.get('score', 0) %}
           <tr>
+            <td>
+              {% set tone = 'bg-emerald-100 text-emerald-700' if score >= 60 else ('bg-amber-100 text-amber-700' if score >= 30 else 'bg-slate-100 text-slate-500') %}
+              <span class="badge {{ tone }} font-semibold"
+                    title="open pipeline ${{ '{:,.0f}'.format(s.get('open_value', 0)) }} · {{ s.get('open_count', 0) }} open · {{ s.get('act_30d', 0) }} activities/30d">
+                {{ score }}
+              </span>
+            </td>
             <td>
               <div class="flex items-center gap-2">
                 <div class="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
@@ -85,6 +96,9 @@
             <td class="text-slate-500 text-center">{{ client.contacts | length }}</td>
             <td class="text-slate-500 text-center">{{ client.deals | length }}</td>
             <td class="text-slate-500"><div class="cell-trunc-sm">{{ client.owner.full_name if client.owner else '—' }}</div></td>
+            <td class="text-slate-500 text-xs whitespace-nowrap" title="{{ client.created_at }}">
+              {% if client.created_at %}{{ client.created_at | date }}{% else %}—{% endif %}
+            </td>
             <td>
               <a href="/clients/{{ client.id }}" class="btn btn-ghost btn-sm">View</a>
             </td>

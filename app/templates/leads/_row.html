@@ -59,6 +59,9 @@
       <span class="text-slate-600 truncate block">{{ lead.owner.full_name if lead.owner else '—' }}</span>
     {% endif %}
   </td>
+  <td class="text-slate-500 text-xs whitespace-nowrap" title="{{ lead.created_at }}">
+    {% if lead.created_at %}{{ lead.created_at | date }}{% else %}—{% endif %}
+  </td>
   <td>
     <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm" title="View &amp; edit full details">View</a>
   </td>

@@ -24,7 +24,11 @@ from app.services.ai_compose import (
     is_ai_configured, summarize_meeting, analyze_jd,
     handle_objection, generate_brief, draft_followup,
     draft_capability, generate_proposal, explain_deal_risk,
+    daily_focus, map_stakeholders, draft_social_messages,
+    draft_sow, analyze_winloss, advise_strategy, coach_rep,
 )
+from app.models.deal import DealStage, OPEN_STAGES, STAGE_LABELS
+from app.services.deal_risk import compute_risk
 from app.templating import templates
 
 
@@ -566,4 +570,421 @@ async def proposal_post(
     return templates.TemplateResponse(request, "ai_tools/proposal.html", {
         "user": user, "flash": get_flash(request),
         "deal": deal, "result": result,
+    })
+
+
+# ── Smart Daily Briefing (on-demand) ────────────────────────────────────────
+
+def _build_briefing_context(db: Session, user: User) -> dict:
+    """Collect today's signals for `user`: overdue tasks, today's tasks, risky
+    deals, hot deals. Returns both the structured data (for the template) and
+    a flat text block (for the AI focus call)."""
+    now = datetime.now(timezone.utc)
+    end_of_today = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    seven_days_ago = now - timedelta(days=7)
+
+    acts_q = db.query(Activity)
+    deals_q = db.query(Deal).filter(Deal.stage.in_(OPEN_STAGES))
+    if not user.is_manager:
+        acts_q = acts_q.filter(Activity.created_by_id == user.id)
+        deals_q = deals_q.filter(Deal.owner_id == user.id)
+
+    overdue = (
+        acts_q.filter(Activity.completed == False, Activity.due_at < now, Activity.due_at.isnot(None))
+        .order_by(Activity.due_at)
+        .limit(20)
+        .all()
+    )
+    today_acts = (
+        acts_q.filter(Activity.completed == False, Activity.due_at >= now, Activity.due_at < end_of_today)
+        .order_by(Activity.due_at)
+        .limit(20)
+        .all()
+    )
+
+    open_deals = deals_q.all()
+    risky_deals: list[tuple] = []
+    for d in open_deals:
+        r = compute_risk(d)
+        if r.level in ("high", "medium"):
+            risky_deals.append((d, r))
+    risky_deals.sort(key=lambda t: (0 if t[1].level == "high" else 1, -(t[1].days_since_activity or 0)))
+    risky_deals = risky_deals[:10]
+
+    hot_deals: list = []
+    if open_deals:
+        deal_ids = [d.id for d in open_deals]
+        rows = (
+            db.query(Activity.deal_id)
+            .filter(Activity.deal_id.in_(deal_ids), Activity.created_at >= seven_days_ago)
+            .all()
+        )
+        counts: dict[int, int] = {}
+        for row in rows:
+            if row[0]:
+                counts[row[0]] = counts.get(row[0], 0) + 1
+        id_to_deal = {d.id: d for d in open_deals}
+        hot_deals = [id_to_deal[did] for did, _ in sorted(counts.items(), key=lambda kv: -kv[1])[:5]]
+
+    return {
+        "now": now,
+        "overdue": overdue,
+        "today_acts": today_acts,
+        "risky_deals": risky_deals,
+        "hot_deals": hot_deals,
+        "open_deal_count": len(open_deals),
+    }
+
+
+@router.get("/briefing")
+async def briefing_page(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    data = _build_briefing_context(db, user)
+    focus = None
+    if is_ai_configured() and (data["overdue"] or data["today_acts"] or data["risky_deals"] or data["hot_deals"]):
+        ctx_parts = [f"Rep: {user.full_name}"]
+        if data["overdue"]:
+            ctx_parts.append(f"Overdue tasks: {len(data['overdue'])} — top: " +
+                             "; ".join(a.subject for a in data["overdue"][:3]))
+        if data["today_acts"]:
+            ctx_parts.append(f"Tasks due today: {len(data['today_acts'])} — top: " +
+                             "; ".join(a.subject for a in data["today_acts"][:3]))
+        if data["risky_deals"]:
+            ctx_parts.append("At-risk deals: " + "; ".join(
+                f"{d.title} ({r.level}, {r.days_since_activity}d quiet)"
+                for d, r in data["risky_deals"][:5]
+            ))
+        if data["hot_deals"]:
+            ctx_parts.append("Hot deals (most active last 7d): " + "; ".join(
+                f"{d.title} ({d.stage_label})" for d in data["hot_deals"][:3]
+            ))
+        try:
+            focus = await daily_focus("\n".join(ctx_parts), db=db)
+        except Exception as e:
+            print(f"[briefing] daily_focus failed: {e}")
+
+    return templates.TemplateResponse(request, "ai_tools/briefing.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": is_ai_configured(),
+        "focus": focus,
+        **data,
+    })
+
+
+# ── AI Stakeholder Mapper ───────────────────────────────────────────────────
+
+def _build_stakeholder_context(db: Session, client: Client) -> str:
+    lines = [f"# Account: {client.name}"]
+    if client.industry:
+        lines.append(f"Industry: {client.industry}")
+    contacts = db.query(Lead).filter(Lead.client_id == client.id).all()
+    if not contacts:
+        lines.append("No linked contacts yet.")
+    else:
+        lines.append("\n## Contacts and their signals")
+        for c in contacts:
+            recent = (
+                db.query(Activity).filter(Activity.lead_id == c.id)
+                .order_by(Activity.created_at.desc()).limit(5).all()
+            )
+            last_touch = recent[0].created_at.strftime("%Y-%m-%d") if recent else "never"
+            line = f"- {c.name}"
+            if c.job_title:
+                line += f" — {c.job_title}"
+            line += f" · status: {c.status.value}"
+            line += f" · last touch: {last_touch}"
+            line += f" · recent activity count: {len(recent)}"
+            lines.append(line)
+    return "\n".join(lines)
+
+
+@router.get("/stakeholders/{client_id}")
+async def stakeholders_page(client_id: int, request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    _require_ai()
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(404)
+    if not user.is_manager and client.owner_id and client.owner_id != user.id:
+        raise HTTPException(403)
+    try:
+        result = await map_stakeholders(_build_stakeholder_context(db, client), db=db)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    return templates.TemplateResponse(request, "ai_tools/stakeholders.html", {
+        "user": user, "flash": get_flash(request),
+        "client": client, "result": result,
+    })
+
+
+# ── LinkedIn / WhatsApp message drafter ─────────────────────────────────────
+
+@router.get("/social")
+def social_page(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    leads = db.query(Lead).order_by(Lead.first_name).limit(200).all() if user.is_manager else \
+            db.query(Lead).filter(Lead.owner_id == user.id).order_by(Lead.first_name).limit(200).all()
+    return templates.TemplateResponse(request, "ai_tools/social.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": is_ai_configured(),
+        "leads": leads, "result": None, "intent": "", "selected_lead_id": "",
+    })
+
+
+@router.post("/social")
+async def social_post(
+    request: Request,
+    intent: str = Form(...),
+    lead_id: str = Form(""),
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    _require_ai()
+    if not intent.strip():
+        raise HTTPException(400, "Describe what you want to say")
+    contact_ctx = ""
+    lid = int(lead_id) if lead_id.strip().isdigit() else None
+    if lid:
+        lead = db.get(Lead, lid)
+        if lead:
+            bits = [f"Name: {lead.name}"]
+            if lead.job_title: bits.append(f"Title: {lead.job_title}")
+            if lead.company: bits.append(f"Company: {lead.company}")
+            contact_ctx = " · ".join(bits)
+    try:
+        result = await draft_social_messages(intent, contact_ctx, db=db)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    leads = db.query(Lead).order_by(Lead.first_name).limit(200).all() if user.is_manager else \
+            db.query(Lead).filter(Lead.owner_id == user.id).order_by(Lead.first_name).limit(200).all()
+    return templates.TemplateResponse(request, "ai_tools/social.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": True, "leads": leads,
+        "result": result, "intent": intent, "selected_lead_id": lead_id,
+    })
+
+
+# ── Rate Card Recommender (internal data, no AI required) ───────────────────
+
+def _rate_card_for(db: Session, role_query: str) -> dict:
+    """Find similar past deals (matching role keywords in title or notes) and
+    return median / avg deal value as a proxy for rate. Pure SQL — no AI call."""
+    needles = [t.strip().lower() for t in role_query.split() if t.strip() and len(t.strip()) > 2]
+    if not needles:
+        return {"matches": [], "median": None, "avg": None, "min": None, "max": None}
+    # Match either title or notes
+    from sqlalchemy import or_
+    conditions = []
+    for n in needles:
+        like = f"%{n}%"
+        conditions.append(Deal.title.ilike(like))
+        conditions.append(Deal.notes.ilike(like))
+    q = db.query(Deal).filter(or_(*conditions), Deal.value > 0)
+    deals = q.order_by(Deal.updated_at.desc()).limit(50).all()
+    values = sorted(float(d.value) for d in deals if d.value)
+    summary = {"matches": deals[:10]}
+    if values:
+        summary["min"] = values[0]
+        summary["max"] = values[-1]
+        summary["avg"] = sum(values) / len(values)
+        mid = len(values) // 2
+        summary["median"] = values[mid] if len(values) % 2 == 1 else (values[mid - 1] + values[mid]) / 2
+    else:
+        summary["min"] = summary["max"] = summary["avg"] = summary["median"] = None
+    return summary
+
+
+@router.get("/rates")
+def rates_page(request: Request, user: User = Depends(require_user)):
+    return templates.TemplateResponse(request, "ai_tools/rates.html", {
+        "user": user, "flash": get_flash(request),
+        "role_query": "", "summary": None,
+    })
+
+
+@router.post("/rates")
+def rates_post(
+    request: Request,
+    role_query: str = Form(...),
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    summary = _rate_card_for(db, role_query)
+    return templates.TemplateResponse(request, "ai_tools/rates.html", {
+        "user": user, "flash": get_flash(request),
+        "role_query": role_query, "summary": summary,
+    })
+
+
+# ── SOW Drafter (per deal) ──────────────────────────────────────────────────
+
+@router.post("/sow/{deal_id}")
+async def sow_post(
+    deal_id: int,
+    request: Request,
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    _require_ai()
+    deal = db.get(Deal, deal_id)
+    if not deal:
+        raise HTTPException(404)
+    if not user.is_manager and deal.owner_id and deal.owner_id != user.id:
+        raise HTTPException(403)
+    context_text = _build_deal_proposal_context(db, deal)
+    try:
+        result = await draft_sow(context_text, db=db)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    return templates.TemplateResponse(request, "ai_tools/sow.html", {
+        "user": user, "flash": get_flash(request),
+        "deal": deal, "result": result,
+    })
+
+
+# ── Win/Loss Analyzer ───────────────────────────────────────────────────────
+
+def _build_winloss_context(db: Session, user: User) -> tuple[str, int, int]:
+    """Recent closed deals (last 180d), text-formatted for the AI prompt.
+    Returns (context_text, won_count, lost_count)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=180)
+    q = db.query(Deal).filter(
+        Deal.stage.in_([DealStage.CLOSED_WON, DealStage.CLOSED_LOST]),
+        Deal.updated_at >= cutoff,
+    )
+    if not user.is_manager:
+        q = q.filter(Deal.owner_id == user.id)
+    deals = q.order_by(Deal.updated_at.desc()).limit(50).all()
+    won = [d for d in deals if d.stage == DealStage.CLOSED_WON]
+    lost = [d for d in deals if d.stage == DealStage.CLOSED_LOST]
+    lines = [f"Closed deals in the last 180 days: {len(won)} won, {len(lost)} lost."]
+    for d in deals:
+        bits = [d.title, d.stage.value, f"value={d.value}"]
+        if d.client:
+            bits.append(f"client={d.client.name}")
+            if d.client.industry:
+                bits.append(f"industry={d.client.industry}")
+        if d.notes:
+            bits.append(f"notes={d.notes[:200]}")
+        lines.append("- " + " · ".join(bits))
+    return "\n".join(lines), len(won), len(lost)
+
+
+@router.get("/winloss")
+async def winloss_page(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    ctx, won, lost = _build_winloss_context(db, user)
+    result = None
+    if is_ai_configured() and (won + lost) >= 2:
+        try:
+            result = await analyze_winloss(ctx, db=db)
+        except Exception as e:
+            print(f"[winloss] {e}")
+    return templates.TemplateResponse(request, "ai_tools/winloss.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": is_ai_configured(),
+        "won": won, "lost": lost, "result": result,
+    })
+
+
+# ── Enterprise Strategy Advisor ─────────────────────────────────────────────
+
+def _build_strategy_context(db: Session, user: User) -> str:
+    deals_q = db.query(Deal)
+    if not user.is_manager:
+        deals_q = deals_q.filter(Deal.owner_id == user.id)
+    deals = deals_q.all()
+    industry_stats: dict[str, dict] = {}
+    for d in deals:
+        ind = (d.client.industry if d.client else None) or "Unknown"
+        s = industry_stats.setdefault(ind, {"open": 0, "won": 0, "lost": 0, "value_open": 0.0, "value_won": 0.0})
+        if d.stage == DealStage.CLOSED_WON:
+            s["won"] += 1; s["value_won"] += float(d.value or 0)
+        elif d.stage == DealStage.CLOSED_LOST:
+            s["lost"] += 1
+        elif d.stage in OPEN_STAGES:
+            s["open"] += 1; s["value_open"] += float(d.value or 0)
+    # Top accounts by open pipeline value
+    open_deals = [d for d in deals if d.stage in OPEN_STAGES]
+    accounts: dict[int, dict] = {}
+    for d in open_deals:
+        if not d.client_id:
+            continue
+        a = accounts.setdefault(d.client_id, {"name": d.client.name if d.client else f"#{d.client_id}", "value": 0.0, "count": 0, "industry": (d.client.industry if d.client else "")})
+        a["value"] += float(d.value or 0); a["count"] += 1
+    top_accounts = sorted(accounts.values(), key=lambda x: -x["value"])[:8]
+
+    lines = ["# Pipeline by industry"]
+    for ind, s in sorted(industry_stats.items(), key=lambda kv: -kv[1]["value_open"]):
+        lines.append(
+            f"- {ind}: open={s['open']} (${int(s['value_open']):,}) · won={s['won']} (${int(s['value_won']):,}) · lost={s['lost']}"
+        )
+    lines.append("\n# Top open accounts")
+    for a in top_accounts:
+        ind = f" [{a['industry']}]" if a["industry"] else ""
+        lines.append(f"- {a['name']}{ind}: {a['count']} open deals, ${int(a['value']):,}")
+    return "\n".join(lines)
+
+
+@router.get("/strategy")
+async def strategy_page(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    result = None
+    ctx = _build_strategy_context(db, user)
+    if is_ai_configured():
+        try:
+            result = await advise_strategy(ctx, db=db)
+        except Exception as e:
+            print(f"[strategy] {e}")
+    return templates.TemplateResponse(request, "ai_tools/strategy.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": is_ai_configured(),
+        "raw_context": ctx, "result": result,
+    })
+
+
+# ── Sales Coach ─────────────────────────────────────────────────────────────
+
+def _build_coach_context(db: Session, user: User) -> str:
+    """Summarize the rep's activity last 30 days: counts by type, response gap,
+    deals worked, win rate."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=30)
+    target_user_id = user.id
+
+    acts = db.query(Activity).filter(
+        Activity.created_by_id == target_user_id,
+        Activity.created_at >= cutoff,
+    ).all()
+    by_type: dict[str, int] = {}
+    for a in acts:
+        by_type[a.type.value] = by_type.get(a.type.value, 0) + 1
+
+    open_deals = db.query(Deal).filter(
+        Deal.owner_id == target_user_id, Deal.stage.in_(OPEN_STAGES),
+    ).all()
+    won = db.query(Deal).filter(Deal.owner_id == target_user_id, Deal.stage == DealStage.CLOSED_WON).count()
+    lost = db.query(Deal).filter(Deal.owner_id == target_user_id, Deal.stage == DealStage.CLOSED_LOST).count()
+
+    # Stalled = no activity in 14+ days
+    stalled = []
+    for d in open_deals:
+        last = d.last_activity_at
+        if last is None or (now - (last if last.tzinfo else last.replace(tzinfo=timezone.utc))).days >= 14:
+            stalled.append(d)
+
+    lines = [f"Rep: {user.full_name}",
+             f"Activities last 30d: total={len(acts)}, by type: " + ", ".join(f"{k}={v}" for k, v in by_type.items()),
+             f"Open deals: {len(open_deals)}; stalled (no activity 14d+): {len(stalled)}",
+             f"Closed last all-time: won={won}, lost={lost}"]
+    if stalled[:5]:
+        lines.append("Stalled deals: " + "; ".join(d.title for d in stalled[:5]))
+    return "\n".join(lines)
+
+
+@router.get("/coach")
+async def coach_page(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    result = None
+    ctx = _build_coach_context(db, user)
+    if is_ai_configured():
+        try:
+            result = await coach_rep(ctx, db=db)
+        except Exception as e:
+            print(f"[coach] {e}")
+    return templates.TemplateResponse(request, "ai_tools/coach.html", {
+        "user": user, "flash": get_flash(request),
+        "ai_enabled": is_ai_configured(),
+        "raw_context": ctx, "result": result,
     })

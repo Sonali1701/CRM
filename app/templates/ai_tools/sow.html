@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ result.title or 'SOW Draft' }} – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/deals/{{ deal.id }}" class="text-slate-400 hover:text-slate-600 text-sm">← Deal</a>
+    <h1 class="text-xl font-semibold">{{ result.title }}</h1>
+    <button onclick="window.print()" class="ml-auto btn btn-secondary text-sm">Print / Save PDF</button>
+  </div>
+
+  <div class="card p-6 space-y-5 prose prose-sm max-w-none">
+    {% if result.parties %}<section><h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide mt-0">Parties</h2><p>{{ result.parties }}</p></section>{% endif %}
+    {% if result.background %}<section><h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Background</h2><p>{{ result.background }}</p></section>{% endif %}
+    {% if result.scope_of_work %}
+    <section>
+      <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Scope of work</h2>
+      <ul>{% for s in result.scope_of_work %}<li>{{ s }}</li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+    {% if result.resources %}
+    <section>
+      <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Resources</h2>
+      <table class="crm crm-compact w-full text-sm">
+        <thead><tr><th>Role</th><th>Count</th><th>Key skills</th><th>Location</th></tr></thead>
+        <tbody>
+          {% for r in result.resources %}
+          <tr><td>{{ r.role }}</td><td>{{ r.count or '—' }}</td><td>{{ r.skills or '—' }}</td><td>{{ r.location or '—' }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+    {% if result.deliverables %}
+    <section><h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Deliverables</h2>
+      <ul>{% for d in result.deliverables %}<li>{{ d }}</li>{% endfor %}</ul></section>
+    {% endif %}
+    {% if result.duration_and_timeline %}<section><h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Duration & timeline</h2><p>{{ result.duration_and_timeline }}</p></section>{% endif %}
+    {% if result.commercials %}<section><h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Commercials</h2><p>{{ result.commercials }}</p></section>{% endif %}
+    {% if result.assumptions %}
+    <section><h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Assumptions</h2>
+      <ul>{% for a in result.assumptions %}<li>{{ a }}</li>{% endfor %}</ul></section>
+    {% endif %}
+    {% if result.acceptance_criteria %}
+    <section><h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Acceptance criteria</h2>
+      <ul>{% for a in result.acceptance_criteria %}<li>{{ a }}</li>{% endfor %}</ul></section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

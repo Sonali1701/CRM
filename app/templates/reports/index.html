@@ -102,6 +102,99 @@
   </div>
 </div>
 
+{% if forecast_rows %}
+<div class="card p-5 mt-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-semibold text-sm text-slate-700">Revenue Forecast</h2>
+    <span class="text-xs text-slate-500">probability-weighted · total <b>{{ forecast_total_weighted | currency }}</b></span>
+  </div>
+  {% set max_w = forecast_rows | map(attribute='weighted') | max %}
+  <div class="space-y-3">
+    {% for row in forecast_rows %}
+    <div>
+      <div class="flex items-center justify-between text-sm mb-1">
+        <span class="font-medium text-slate-700">{{ row.label }}</span>
+        <span class="text-slate-500">
+          <span class="font-semibold text-emerald-600">{{ row.weighted | currency }}</span>
+          <span class="text-xs text-slate-400">of {{ row.value | currency }} · {{ row.count }} deal{{ '' if row.count == 1 else 's' }}</span>
+        </span>
+      </div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div class="h-full bg-emerald-500" style="width: {% if max_w %}{{ (row.weighted / max_w * 100) | round(0, 'floor') | int }}{% else %}0{% endif %}%"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if industry_rows %}
+<div class="card p-5 mt-6">
+  <h2 class="font-semibold text-sm text-slate-700 mb-4">Industry Opportunity Heatmap</h2>
+  <table class="crm crm-compact w-full">
+    <thead>
+      <tr>
+        <th>Industry</th>
+        <th class="text-right">Open pipeline</th>
+        <th class="text-right">Open #</th>
+        <th class="text-right">Won</th>
+        <th class="text-right">Lost</th>
+        <th class="text-right">Win rate</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in industry_rows %}
+      <tr>
+        <td class="font-medium">{{ r.industry }}</td>
+        <td class="text-right font-semibold text-brand-600">{{ r.open_value | currency }}</td>
+        <td class="text-right text-slate-600">{{ r.open_count }}</td>
+        <td class="text-right text-green-600">{{ r.won_count }}</td>
+        <td class="text-right text-slate-400">{{ r.lost_count }}</td>
+        <td class="text-right text-slate-600">{% if r.won_count + r.lost_count %}{{ '%.0f' | format(r.win_rate) }}%{% else %}—{% endif %}</td>
+        <td class="w-40">
+          <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full bg-brand-500" style="width: {{ r.pct }}%"></div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if stalled_deals or inactive_accounts %}
+<div class="grid lg:grid-cols-2 gap-6 mt-6">
+  {% if stalled_deals %}
+  <div class="card p-5 border-l-4 border-amber-400">
+    <h2 class="font-semibold text-sm text-slate-700 mb-3">Stalled deals <span class="text-xs text-slate-400 font-normal">(no activity 14d+)</span></h2>
+    <ul class="space-y-2">
+      {% for row in stalled_deals %}
+      <li class="flex items-start justify-between text-sm gap-2">
+        <a href="/deals/{{ row.deal.id }}" class="text-brand-600 hover:underline truncate">{{ row.deal.title }}</a>
+        <span class="text-xs text-amber-700 whitespace-nowrap">{% if row.days_quiet is not none %}{{ row.days_quiet }}d quiet{% else %}no activity{% endif %} · {{ row.deal.stage_label }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% if inactive_accounts %}
+  <div class="card p-5 border-l-4 border-red-400">
+    <h2 class="font-semibold text-sm text-slate-700 mb-3">Inactive accounts <span class="text-xs text-slate-400 font-normal">(no activity 30d+, open deals)</span></h2>
+    <ul class="space-y-2">
+      {% for row in inactive_accounts %}
+      <li class="flex items-start justify-between text-sm gap-2">
+        <a href="/clients/{{ row.client.id }}" class="text-brand-600 hover:underline truncate">{{ row.client.name }}</a>
+        <span class="text-xs text-red-600 whitespace-nowrap">{% if row.days_quiet is not none %}{{ row.days_quiet }}d quiet{% else %}no activity{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if rep_rows %}
 <div class="card p-5 mt-6">
   <h2 class="font-semibold text-sm text-slate-700 mb-4">Rep Leaderboard</h2>

@@ -6,6 +6,11 @@
     <a href="/leads" class="text-slate-400 hover:text-slate-600 text-sm">← Contacts</a>
     <h1 class="text-xl font-semibold">{{ 'Edit Contact' if lead else 'New Contact' }}</h1>
     {% if lead %}<span class="badge badge-{{ lead.status.value }}">{{ lead.status.value | humanize }}</span>{% endif %}
+    {% if lead and lead.created_at %}
+      <span class="text-xs text-slate-400" title="Created {{ lead.created_at }}{% if lead.updated_at and lead.updated_at != lead.created_at %} · updated {{ lead.updated_at }}{% endif %}">
+        Added {{ lead.created_at | date }}{% if lead.updated_at and lead.updated_at != lead.created_at %} · updated {{ lead.updated_at | date }}{% endif %}
+      </span>
+    {% endif %}
     {% if lead %}
       <a href="/ai-tools/brief/contact/{{ lead.id }}" class="ml-auto btn btn-secondary btn-sm" title="AI pre-meeting brief">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.39 7.36H22l-6.19 4.5 2.39 7.36L12 16.72l-6.19 4.5 2.39-7.36L2 9.36h7.61z"/></svg>
@@ -14,18 +19,51 @@
     {% endif %}
   </div>
 
+  {% set fv = form_values if form_values is defined else {} %}
+  {% set _ = lead %}
+  {% macro v(field) -%}
+    {%- if fv.get(field) is not none and fv.get(field) != '' -%}{{ fv.get(field) }}
+    {%- elif lead -%}{{ lead[field] if lead[field] is not none else '' }}
+    {%- endif -%}
+  {%- endmacro %}
+
+  {% if duplicate is defined and duplicate %}
+  <div class="card p-4 mb-5 bg-amber-50 border-amber-300">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-amber-900">Possible duplicate — match on {{ duplicate.match_basis }}</p>
+        <p class="text-sm text-amber-800 mt-1">
+          <a href="/leads/{{ duplicate.lead.id }}" class="font-medium underline">{{ duplicate.lead.name }}</a>
+          {% if duplicate.lead.company %} · {{ duplicate.lead.company }}{% endif %}
+          {% if duplicate.lead.email %} · {{ duplicate.lead.email }}{% endif %}
+          {% if duplicate.lead.created_at %} · added {{ duplicate.lead.created_at | date }}{% endif %}
+        </p>
+        <p class="text-xs text-amber-700 mt-1">Open the existing record to update it, or tick "Create anyway" below and re-submit if this really is a different person.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card p-6">
     <form method="post" action="{{ '/leads/' + (lead.id | string) if lead else '/leads/new' }}" class="space-y-5">
+
+      {% if duplicate is defined and duplicate %}
+      <label class="flex items-center gap-2 text-sm text-slate-800 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <input type="checkbox" name="force_create" value="1" class="rounded" />
+        Create anyway — this is a different person despite the match
+      </label>
+      {% endif %}
 
       <!-- Name row -->
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">First Name <span class="text-red-500">*</span></label>
-          <input name="first_name" value="{{ lead.first_name if lead else '' }}" required class="input" placeholder="First name" />
+          <input name="first_name" value="{{ v('first_name') }}" required class="input" placeholder="First name" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Last Name</label>
-          <input name="last_name" value="{{ lead.last_name if lead else '' }}" class="input" placeholder="Last name" />
+          <input name="last_name" value="{{ v('last_name') }}" class="input" placeholder="Last name" />
         </div>
       </div>
 
@@ -33,7 +71,7 @@
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">Job Title</label>
-          <input name="job_title" value="{{ lead.job_title if lead else '' }}" class="input" placeholder="e.g. Hiring Manager" />
+          <input name="job_title" value="{{ v('job_title') }}" class="input" placeholder="e.g. Hiring Manager" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Company</label>
@@ -41,13 +79,13 @@
             <option value="">— No linked company —</option>
             {% for c in clients %}
               <option value="{{ c.id }}"
-                {% if (lead and lead.client_id == c.id) or (not lead and preset_client_id == c.id) %}selected{% endif %}>{{ c.name }}</option>
+                {% if (fv.get('client_id') and fv.get('client_id') == c.id|string) or (lead and lead.client_id == c.id) or (not lead and preset_client_id == c.id) %}selected{% endif %}>{{ c.name }}</option>
             {% endfor %}
             <option value="new">+ New company name…</option>
           </select>
           <input name="company" id="company-text"
-            value="{{ lead.company if lead and not lead.client_id else '' }}"
-            class="input mt-1 {% if not (lead and not lead.client_id) %}hidden{% endif %}"
+            value="{{ fv.get('company') if fv.get('company') else (lead.company if lead and not lead.client_id else '') }}"
+            class="input mt-1 {% if not (fv.get('company') or (lead and not lead.client_id)) %}hidden{% endif %}"
             placeholder="Type company name" />
         </div>
       </div>
@@ -56,15 +94,15 @@
       <div class="grid sm:grid-cols-3 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">Email</label>
-          <input type="email" name="email" value="{{ lead.email if lead else '' }}" class="input" placeholder="email@example.com" />
+          <input type="email" name="email" value="{{ v('email') }}" class="input" placeholder="email@example.com" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Mobile</label>
-          <input name="mobile" value="{{ lead.mobile if lead else '' }}" class="input" placeholder="+1 555 0100" />
+          <input name="mobile" value="{{ v('mobile') }}" class="input" placeholder="+1 555 0100" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Phone</label>
-          <input name="phone" value="{{ lead.phone if lead else '' }}" class="input" placeholder="+1 555 0200" />
+          <input name="phone" value="{{ v('phone') }}" class="input" placeholder="+1 555 0200" />
         </div>
       </div>
 
@@ -73,7 +111,7 @@
         <label class="block text-sm font-medium mb-1">LinkedIn Profile URL</label>
         <div class="relative">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
-          <input name="linkedin_url" value="{{ lead.linkedin_url if lead else '' }}" class="input pl-9" placeholder="https://linkedin.com/in/..." />
+          <input name="linkedin_url" value="{{ v('linkedin_url') }}" class="input pl-9" placeholder="https://linkedin.com/in/..." />
         </div>
       </div>
 
@@ -83,15 +121,15 @@
         <div class="grid sm:grid-cols-3 gap-4">
           <div>
             <label class="block text-xs text-slate-500 mb-1">City</label>
-            <input name="city" value="{{ lead.city if lead else '' }}" class="input" placeholder="City" />
+            <input name="city" value="{{ v('city') }}" class="input" placeholder="City" />
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-1">State / Province</label>
-            <input name="state" value="{{ lead.state if lead else '' }}" class="input" placeholder="State" />
+            <input name="state" value="{{ v('state') }}" class="input" placeholder="State" />
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-1">Country</label>
-            <input name="country" value="{{ lead.country if lead else '' }}" class="input" placeholder="Country" />
+            <input name="country" value="{{ v('country') }}" class="input" placeholder="Country" />
           </div>
         </div>
       </div>
@@ -100,7 +138,7 @@
       <div class="grid sm:grid-cols-3 gap-4">
         <div>
           <label class="block text-sm font-medium mb-1">Source</label>
-          <input name="source" value="{{ lead.source if lead else '' }}" placeholder="LinkedIn, Referral…" class="input" />
+          <input name="source" value="{{ v('source') }}" placeholder="LinkedIn, Referral…" class="input" />
         </div>
         {% if lead %}
         <div>

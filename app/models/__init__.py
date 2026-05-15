@@ -8,6 +8,10 @@ from app.models.mail import MailAccount, EmailMessage
 from app.models.email_template import EmailTemplate
 from app.models.sequence import EmailSequence, SequenceStep, SequenceEnrollment
 from app.models.company_profile import CompanyProfile
+from app.models.sales_planning import (
+    DealQualification, AccountPlan, ClosePlan, ClosePlanStep, ClosePlanStepStatus,
+    MEDDIC_DIMENSIONS,
+)
 
 __all__ = [
     "User",
@@ -29,4 +33,10 @@ __all__ = [
     "SequenceStep",
     "SequenceEnrollment",
     "CompanyProfile",
+    "DealQualification",
+    "AccountPlan",
+    "ClosePlan",
+    "ClosePlanStep",
+    "ClosePlanStepStatus",
+    "MEDDIC_DIMENSIONS",
 ]

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Sales Coach – AI Tools – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/ai-tools" class="text-slate-400 hover:text-slate-600 text-sm">← AI Tools</a>
+    <h1 class="text-xl font-semibold">Sales Coach</h1>
+  </div>
+
+  <p class="text-sm text-slate-500 mb-4">A look at your last 30 days, plus three things to do this week.</p>
+
+  {% if not ai_enabled %}
+  <div class="card p-4 mb-5 bg-amber-50 border-amber-200 text-sm text-amber-800">No AI provider configured.</div>
+  {% elif not result %}
+  <div class="card p-6 text-center text-slate-500 text-sm">Couldn't reach the AI provider. Activity summary used as input:</div>
+  {% else %}
+    <div class="grid sm:grid-cols-2 gap-4 mb-4">
+      {% if result.strengths %}
+      <div class="card p-4 border-l-4 border-emerald-400">
+        <h3 class="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">Strengths</h3>
+        <ul class="space-y-2 text-sm text-slate-700">{% for s in result.strengths %}<li class="flex gap-2"><span class="text-emerald-500">+</span><span>{{ s }}</span></li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if result.gaps %}
+      <div class="card p-4 border-l-4 border-amber-400">
+        <h3 class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-3">Gaps</h3>
+        <ul class="space-y-2 text-sm text-slate-700">{% for g in result.gaps %}<li class="flex gap-2"><span class="text-amber-500">⚠</span><span>{{ g }}</span></li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+    </div>
+    {% if result.this_week %}
+    <div class="card p-4 bg-indigo-50 border-indigo-200">
+      <h3 class="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-3">This week</h3>
+      <ul class="space-y-2 text-sm text-slate-800">{% for t in result.this_week %}<li class="flex gap-2"><span class="text-indigo-500">→</span><span>{{ t }}</span></li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <details class="mt-5">
+    <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">Activity data used</summary>
+    <pre class="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 whitespace-pre-wrap">{{ raw_context }}</pre>
+  </details>
+</div>
+{% endblock %}

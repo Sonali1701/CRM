@@ -812,3 +812,400 @@ async def daily_focus(briefing_context: str, db: Any = None) -> dict:
         except Exception:
             pass
     return await _structured_call(system, briefing_context, DAILY_FOCUS_SCHEMA, temperature=0.4)
+
+
+# ── Stakeholder Mapper ──────────────────────────────────────────────────────
+
+STAKEHOLDER_SYSTEM = """You map a staffing-sales account's contacts into decision-making roles. Classify each contact into one of:
+- "economic_buyer" (procurement, vendor management, finance)
+- "technical_buyer" (delivery managers, engineering heads, hiring managers)
+- "user" (recruiters, TA leads, team leads who will work with the resources)
+- "champion" (internal advocate, generally any senior who's responsive)
+- "influencer" (executives or peers who shape the decision)
+- "unknown"
+
+Also rate engagement_level "hot" / "warm" / "cold" based on signals provided.
+
+Return JSON:
+  - stakeholders: array of {name, role_label, role_category, engagement_level, why}
+  - gaps: array of strings — what stakeholder types are missing or under-engaged
+  - top_action: one short imperative ("Find the procurement contact at Acme")
+"""
+
+STAKEHOLDER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "stakeholders": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "role_label": {"type": "string"},
+                    "role_category": {"type": "string", "enum": ["economic_buyer", "technical_buyer", "user", "champion", "influencer", "unknown"]},
+                    "engagement_level": {"type": "string", "enum": ["hot", "warm", "cold"]},
+                    "why": {"type": "string"},
+                },
+                "required": ["name", "role_category", "engagement_level"],
+            },
+        },
+        "gaps": {"type": "array", "items": {"type": "string"}},
+        "top_action": {"type": "string"},
+    },
+    "required": ["stakeholders"],
+}
+
+
+async def map_stakeholders(account_context: str, db: Any = None) -> dict:
+    system = STAKEHOLDER_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = STAKEHOLDER_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, account_context, STAKEHOLDER_SCHEMA, temperature=0.3)
+
+
+# ── LinkedIn / WhatsApp message drafter ─────────────────────────────────────
+
+SOCIAL_SYSTEM = """You draft a short message for a staffing sales rep to send via LinkedIn DM or WhatsApp. Tone is professional but conversational — NOT a formal email. Length: 2-4 short sentences max for LinkedIn, 1-3 sentences for WhatsApp. No "Dear", no signoff, no signature — these are chat messages.
+
+Use placeholders like {{first_name}}, {{company}} where it improves the message.
+
+Return JSON:
+  - linkedin: short LinkedIn DM (2-4 sentences)
+  - whatsapp: short WhatsApp message (1-3 sentences)
+"""
+
+SOCIAL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "linkedin": {"type": "string"},
+        "whatsapp": {"type": "string"},
+    },
+    "required": ["linkedin", "whatsapp"],
+}
+
+
+async def draft_social_messages(intent: str, contact_context: str = "", db: Any = None) -> dict:
+    system = SOCIAL_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = SOCIAL_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    user = f"Intent: {intent}"
+    if contact_context:
+        user += f"\n\nContact context:\n{contact_context}"
+    return await _structured_call(system, user, SOCIAL_SCHEMA, temperature=0.5)
+
+
+# ── SOW / MSA Draft Assistant ───────────────────────────────────────────────
+
+SOW_SYSTEM = """You draft a Statement of Work (SOW) outline for a staffing engagement. Use ONLY information given — never invent rates, dates, or scope. If something is missing, use a clearly-bracketed placeholder like [insert duration].
+
+Return JSON with these sections:
+  - title: "SOW: <project name>"
+  - parties: 1-2 sentences naming the customer and supplier (supplier is from company profile if given)
+  - background: 2-3 sentences on context — why this work is happening
+  - scope_of_work: array of 4-7 bulleted scope items
+  - resources: array of objects {role, count, skills, location} describing the resources to be provided
+  - deliverables: array of 3-5 bullets
+  - duration_and_timeline: 1-2 sentences
+  - commercials: 2-3 sentences on engagement model, rates (placeholders if unknown), invoicing cadence
+  - assumptions: array of 3-5 bullets
+  - acceptance_criteria: array of 3-5 bullets
+"""
+
+SOW_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "parties": {"type": "string"},
+        "background": {"type": "string"},
+        "scope_of_work": {"type": "array", "items": {"type": "string"}},
+        "resources": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "role": {"type": "string"},
+                    "count": {"type": "string"},
+                    "skills": {"type": "string"},
+                    "location": {"type": "string"},
+                },
+                "required": ["role"],
+            },
+        },
+        "deliverables": {"type": "array", "items": {"type": "string"}},
+        "duration_and_timeline": {"type": "string"},
+        "commercials": {"type": "string"},
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "acceptance_criteria": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["title", "parties", "scope_of_work"],
+}
+
+
+async def draft_sow(deal_context: str, db: Any = None) -> dict:
+    system = SOW_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = SOW_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, deal_context, SOW_SCHEMA, temperature=0.3)
+
+
+# ── Win/Loss Analyzer ───────────────────────────────────────────────────────
+
+WINLOSS_SYSTEM = """You analyze a list of recently closed staffing deals (won AND lost) and identify patterns. Use ONLY the data given.
+
+Return JSON:
+  - win_themes: array of 3-5 strings — common patterns in WON deals
+  - loss_themes: array of 3-5 strings — common patterns in LOST deals
+  - top_risk_signals: array of 3-5 strings — early signals of a loss you'd watch for
+  - recommendations: array of 3-5 strings — concrete actions to improve win rate
+"""
+
+WINLOSS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "win_themes": {"type": "array", "items": {"type": "string"}},
+        "loss_themes": {"type": "array", "items": {"type": "string"}},
+        "top_risk_signals": {"type": "array", "items": {"type": "string"}},
+        "recommendations": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["win_themes", "loss_themes", "recommendations"],
+}
+
+
+async def analyze_winloss(deals_context: str, db: Any = None) -> dict:
+    return await _structured_call(WINLOSS_SYSTEM, deals_context, WINLOSS_SCHEMA, temperature=0.3)
+
+
+# ── Enterprise Strategy Advisor ─────────────────────────────────────────────
+
+STRATEGY_SYSTEM = """You advise a staffing sales leader on which industries and accounts to prioritize, based on their current pipeline data. Use ONLY the data given.
+
+Return JSON:
+  - top_industries: array of {industry, why, opportunity_size} — 3-5 industries to focus on
+  - top_accounts: array of {account, why, action} — 3-5 existing accounts to invest in
+  - underleveraged: array of strings — segments/industries currently under-represented but worth exploring (1-3)
+  - guidance: 2-3 sentence executive paragraph summarizing the strategy
+"""
+
+STRATEGY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "top_industries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "industry": {"type": "string"},
+                    "why": {"type": "string"},
+                    "opportunity_size": {"type": "string"},
+                },
+                "required": ["industry"],
+            },
+        },
+        "top_accounts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "account": {"type": "string"},
+                    "why": {"type": "string"},
+                    "action": {"type": "string"},
+                },
+                "required": ["account"],
+            },
+        },
+        "underleveraged": {"type": "array", "items": {"type": "string"}},
+        "guidance": {"type": "string"},
+    },
+    "required": ["guidance"],
+}
+
+
+async def advise_strategy(pipeline_context: str, db: Any = None) -> dict:
+    system = STRATEGY_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = STRATEGY_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, pipeline_context, STRATEGY_SCHEMA, temperature=0.4)
+
+
+# ── Sales Coach ─────────────────────────────────────────────────────────────
+
+COACH_SYSTEM = """You coach a staffing sales rep based on their recent activity patterns. Use ONLY the data given. Be specific (reference numbers and account names), not generic.
+
+Return JSON:
+  - strengths: array of 2-4 strings — what they're doing well
+  - gaps: array of 2-4 strings — what's missing or inconsistent
+  - this_week: array of 3-5 strings — concrete actions to take this week
+"""
+
+COACH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "strengths": {"type": "array", "items": {"type": "string"}},
+        "gaps": {"type": "array", "items": {"type": "string"}},
+        "this_week": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["this_week"],
+}
+
+
+async def coach_rep(activity_context: str, db: Any = None) -> dict:
+    return await _structured_call(COACH_SYSTEM, activity_context, COACH_SCHEMA, temperature=0.4)
+
+
+# ── MEDDIC qualification scorer ─────────────────────────────────────────────
+
+MEDDIC_SYSTEM = """You qualify a B2B sales deal using the MEDDIC framework. Score each of the six dimensions on a scale of 0-3 using ONLY the data the user provides — if a dimension has no signal, score it 0 (unknown). Never invent.
+
+Scoring rubric (apply to every dimension):
+- 0 = no signal / unknown
+- 1 = weak / red flag
+- 2 = partial / progressing
+- 3 = strong / confirmed
+
+Dimensions:
+- metrics: Has the client quantified the business impact of solving this? (Revenue, cost saved, time saved.)
+- economic_buyer: Have we identified and engaged the person with budget authority?
+- decision_criteria: Do we know the explicit criteria they will use to choose a vendor?
+- decision_process: Do we know the steps, owners, and timeline of their procurement process?
+- identify_pain: Have we confirmed a specific, named pain that this purchase resolves?
+- champion: Do we have an internal advocate selling for us when we are not in the room?
+
+For each dimension, give:
+  - score (0-3, integer)
+  - reasoning: one short sentence citing actual evidence from the data, OR "No data" if nothing was provided.
+
+Also return:
+  - overall_summary: 1-2 sentences capturing the deal's qualification state
+  - top_gap: the single most important dimension to improve next
+"""
+
+MEDDIC_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "metrics": {"type": "object", "properties": {"score": {"type": "integer"}, "reasoning": {"type": "string"}}, "required": ["score"]},
+        "economic_buyer": {"type": "object", "properties": {"score": {"type": "integer"}, "reasoning": {"type": "string"}}, "required": ["score"]},
+        "decision_criteria": {"type": "object", "properties": {"score": {"type": "integer"}, "reasoning": {"type": "string"}}, "required": ["score"]},
+        "decision_process": {"type": "object", "properties": {"score": {"type": "integer"}, "reasoning": {"type": "string"}}, "required": ["score"]},
+        "identify_pain": {"type": "object", "properties": {"score": {"type": "integer"}, "reasoning": {"type": "string"}}, "required": ["score"]},
+        "champion": {"type": "object", "properties": {"score": {"type": "integer"}, "reasoning": {"type": "string"}}, "required": ["score"]},
+        "overall_summary": {"type": "string"},
+        "top_gap": {"type": "string"},
+    },
+    "required": ["metrics", "economic_buyer", "decision_criteria", "decision_process", "identify_pain", "champion"],
+}
+
+
+async def score_meddic(deal_context: str, db: Any = None) -> dict:
+    return await _structured_call(MEDDIC_SYSTEM, deal_context, MEDDIC_SCHEMA, temperature=0.2)
+
+
+# ── Account Plan drafter ────────────────────────────────────────────────────
+
+ACCOUNT_PLAN_SYSTEM = """You draft a strategic account plan for a sales rep covering a key B2B account. Use ONLY the data given. If a section has no signal, write a short prompt like "Discover during next conversation" rather than inventing details.
+
+Return JSON with these sections (each as plain text, 2-5 sentences):
+  - business_goals: what the client is trying to achieve (their goals, not ours)
+  - whitespace: where we can expand inside this account — services we don't yet sell here, teams we haven't engaged
+  - key_stakeholders: who matters and what we know about them
+  - threats_risks: competitive threats, account-side risks (budget freeze, restructure), execution risks
+  - next_90d_actions: 3-5 concrete actions for the next 90 days, as a short bulleted text
+  - success_metrics: how we'll know this account plan is working
+"""
+
+ACCOUNT_PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "business_goals": {"type": "string"},
+        "whitespace": {"type": "string"},
+        "key_stakeholders": {"type": "string"},
+        "threats_risks": {"type": "string"},
+        "next_90d_actions": {"type": "string"},
+        "success_metrics": {"type": "string"},
+    },
+    "required": ["business_goals", "next_90d_actions"],
+}
+
+
+async def draft_account_plan(account_context: str, db: Any = None) -> dict:
+    system = ACCOUNT_PLAN_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = ACCOUNT_PLAN_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, account_context, ACCOUNT_PLAN_SCHEMA, temperature=0.4)
+
+
+# ── Mutual Close Plan drafter ───────────────────────────────────────────────
+
+CLOSE_PLAN_SYSTEM = """You draft a mutual close plan (also called Mutual Action Plan or MAP) for a B2B sales deal. This is a step-by-step roadmap to signature, shared with the client.
+
+Use ONLY the data given. If the target close date is unknown, propose a reasonable one based on stage + typical sales cycle.
+
+Return JSON:
+  - summary: 1-2 sentence framing of what this plan covers
+  - target_close_date: ISO date string (YYYY-MM-DD) OR empty string if unclear
+  - steps: array of 5-9 ordered steps. Each step = {title, owner_label ("us"/"client"/"both"), due_in_days (int, days from today), notes (short)}
+"""
+
+CLOSE_PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "target_close_date": {"type": "string"},
+        "steps": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "owner_label": {"type": "string"},
+                    "due_in_days": {"type": "integer"},
+                    "notes": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    "required": ["summary", "steps"],
+}
+
+
+async def draft_close_plan(deal_context: str, db: Any = None) -> dict:
+    system = CLOSE_PLAN_SYSTEM
+    if db is not None:
+        from app.services.company_context import get_company_profile, build_company_block
+        try:
+            block = build_company_block(get_company_profile(db))
+            if block:
+                system = CLOSE_PLAN_SYSTEM + "\n\n" + block
+        except Exception:
+            pass
+    return await _structured_call(system, deal_context, CLOSE_PLAN_SCHEMA, temperature=0.3)

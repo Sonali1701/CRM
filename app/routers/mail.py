@@ -101,6 +101,43 @@ def _record_email_activity(db: Session, lead: Lead, user_id: int, subject: str, 
     return activity
 
 
+def _create_followup_task(
+    db: Session, lead: Lead, owner_user_id: int,
+    original_subject: str, days: int,
+) -> Activity | None:
+    """Schedule a follow-up Task activity N days from now for this lead.
+    Lives in Upcoming follow-ups, daily digest, and the contact/company/deal timelines."""
+    days = max(1, min(60, int(days)))  # clamp to 1-60d
+    due_at = datetime.now(timezone.utc) + timedelta(days=days)
+    deal_id = None
+    if lead.client_id:
+        from app.models.deal import OPEN_STAGES
+        open_deal = (
+            db.query(Deal)
+            .filter(Deal.client_id == lead.client_id, Deal.stage.in_(OPEN_STAGES))
+            .order_by(Deal.created_at.desc())
+            .first()
+        )
+        if open_deal:
+            deal_id = open_deal.id
+
+    subj_short = (original_subject or "email")[:200]
+    task = Activity(
+        type=ActivityType.TASK,
+        subject=f"Follow up with {lead.name}: {subj_short}",
+        body=f"Auto-scheduled {days} days after sending email \"{subj_short}\". Check for reply and decide next step.",
+        client_id=lead.client_id,
+        lead_id=lead.id,
+        deal_id=deal_id,
+        created_by_id=owner_user_id,
+        due_at=due_at,
+        completed=False,
+    )
+    db.add(task)
+    db.commit()
+    return task
+
+
 async def _send_to_lead(
     db: Session,
     lead: Lead,
@@ -108,12 +145,17 @@ async def _send_to_lead(
     subject: str,
     body_html: str,
     cc_list: list[str] | None,
+    followup_days: int = 0,
 ) -> tuple[str | None, str | None]:
     """Try Graph (owner's mailbox → current user's mailbox), then SMTP.
+    If followup_days > 0, schedule a follow-up Task activity for the lead.
     Returns (method, error). method is None on failure."""
     if not lead.email:
         return None, "no email"
 
+    method: str | None = None
+    err: str | None = None
+    sender_id = current_user_id
     account = _pick_sender_account(db, lead, current_user_id)
     if account:
         try:
@@ -122,17 +164,27 @@ async def _send_to_lead(
             # logged-in user; falls back to current user when no owner mailbox.
             sender_id = account.user_id or current_user_id
             _record_email_activity(db, lead, sender_id, subject, body_html)
-            return "graph", None
+            method = "graph"
         except Exception as e:
-            return None, str(e)
-
-    if is_smtp_configured():
+            err = str(e)
+    elif is_smtp_configured():
         try:
             await asyncio.to_thread(smtp_send, [lead.email], cc_list, subject, body_html)
             _record_email_activity(db, lead, current_user_id, subject, body_html)
-            return "smtp", None
+            method = "smtp"
         except Exception as e:
-            return None, str(e)
+            err = str(e)
+
+    if method:
+        if followup_days > 0:
+            try:
+                _create_followup_task(db, lead, sender_id, subject, followup_days)
+            except Exception as e:
+                # Never fail the send because the follow-up task couldn't be created
+                print(f"[mail] follow-up task for {lead.email} failed: {e}")
+        return method, None
+    if err is not None:
+        return None, err
 
     # Helpful error naming the user who needs to connect
     owner_name = "owner"
@@ -313,6 +365,8 @@ async def mail_send(
     client_id: str = Form(""),
     lead_id: str = Form(""),
     deal_id: str = Form(""),
+    create_followup: str = Form("1"),
+    followup_days: str = Form("5"),
     redirect_to: str = Form("/"),
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
@@ -323,6 +377,29 @@ async def mail_send(
     cid = int(client_id) if client_id.strip().isdigit() else None
     lid = int(lead_id) if lead_id.strip().isdigit() else None
     did = int(deal_id) if deal_id.strip().isdigit() else None
+
+    # Default-on: send a follow-up reminder unless caller explicitly disables it
+    # by sending create_followup=0/off/empty.
+    follow_days = 0
+    if create_followup and create_followup.lower() not in ("0", "off", "false", "no"):
+        try:
+            follow_days = max(1, min(60, int(followup_days)))
+        except (ValueError, TypeError):
+            follow_days = 5
+
+    def _maybe_schedule_followup(sender_id: int) -> str:
+        if not (follow_days and lid):
+            return ""
+        lead = db.get(Lead, lid)
+        if not lead:
+            return ""
+        try:
+            _create_followup_task(db, lead, sender_id, subject, follow_days)
+            due = (datetime.now(timezone.utc) + timedelta(days=follow_days)).strftime("%b %d")
+            return f" Follow-up scheduled for {due}."
+        except Exception as e:
+            print(f"[mail] follow-up task failed: {e}")
+            return ""
 
     # Try Microsoft Graph: current user's mailbox, then lead owner's mailbox
     account = (
@@ -337,11 +414,12 @@ async def mail_send(
 
     if account:
         await send_mail(db, account, to_list, cc_list, subject, body_html, cid, lid, did)
+        sender_id = account.user_id or user.id
         if lid:
             lead = db.get(Lead, lid)
             if lead:
-                _record_email_activity(db, lead, account.user_id or user.id, subject, body_html)
-        return flash(RedirectResponse(redirect_to, 303), "Email sent")
+                _record_email_activity(db, lead, sender_id, subject, body_html)
+        return flash(RedirectResponse(redirect_to, 303), "Email sent." + _maybe_schedule_followup(sender_id))
 
     # SMTP fallback
     if is_smtp_configured():
@@ -350,7 +428,7 @@ async def mail_send(
             lead = db.get(Lead, lid)
             if lead:
                 _record_email_activity(db, lead, user.id, subject, body_html)
-        return flash(RedirectResponse(redirect_to, 303), "Email sent (via SMTP)")
+        return flash(RedirectResponse(redirect_to, 303), "Email sent (via SMTP)." + _maybe_schedule_followup(user.id))
 
     raise HTTPException(400, "No mailbox configured. Connect Outlook in Profile, or set SMTP_* env vars.")
 
@@ -362,6 +440,8 @@ async def mail_bulk_send(
     subject: str = Form(...),
     body_html: str = Form(...),
     cc: str = Form(""),
+    create_followup: str = Form(""),
+    followup_days: str = Form("5"),
     redirect_to: str = Form("/leads"),
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
@@ -379,6 +459,14 @@ async def mail_bulk_send(
 
     cc_list = [addr.strip() for addr in cc.split(";") if addr.strip()] if cc else None
 
+    # Follow-up scheduling — checkbox unchecked → 0 (skip)
+    follow_days = 0
+    if create_followup:
+        try:
+            follow_days = max(1, min(60, int(followup_days)))
+        except (ValueError, TypeError):
+            follow_days = 5
+
     sent = 0
     skipped: list[str] = []
     # Microsoft Graph throttles /sendMail to ~30/min per user mailbox. A 1.2s
@@ -391,6 +479,7 @@ async def mail_bulk_send(
             _render_lead_template(subject, lead),
             _render_lead_template(body_html, lead),
             cc_list,
+            followup_days=follow_days,
         )
         if method:
             sent += 1
@@ -400,6 +489,9 @@ async def mail_bulk_send(
             await asyncio.sleep(1.2)
 
     msg = f"Sent {sent} email(s)."
+    if sent and follow_days > 0:
+        due = (datetime.now(timezone.utc) + timedelta(days=follow_days)).strftime("%b %d")
+        msg += f" Scheduled {sent} follow-up task(s) for {due}."
     if skipped:
         msg += f" Skipped {len(skipped)}: {'; '.join(skipped[:3])}"
         if len(skipped) > 3:

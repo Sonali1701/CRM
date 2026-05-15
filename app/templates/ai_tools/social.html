@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}LinkedIn / WhatsApp – AI Tools – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/ai-tools" class="text-slate-400 hover:text-slate-600 text-sm">← AI Tools</a>
+    <h1 class="text-xl font-semibold">LinkedIn / WhatsApp Drafter</h1>
+  </div>
+
+  <p class="text-sm text-slate-500 mb-4">Describe what you want to say. Get a short LinkedIn DM and a WhatsApp message in your company's voice — pick whichever channel fits the contact.</p>
+
+  {% if not ai_enabled %}
+  <div class="card p-4 mb-4 bg-amber-50 border-amber-200 text-sm text-amber-800">
+    No AI provider configured. Set <code>GEMINI_API_KEY</code> or <code>GROQ_API_KEY</code> first.
+  </div>
+  {% endif %}
+
+  <form method="post" action="/ai-tools/social" class="card p-5 space-y-4 mb-5">
+    <div>
+      <label class="block text-sm font-medium mb-1">What do you want to say? <span class="text-red-500">*</span></label>
+      <textarea name="intent" rows="3" required class="textarea text-sm" placeholder="e.g. Reconnect after their hiring spike — they posted 12 backend roles last week.">{{ intent or '' }}</textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Contact <span class="text-slate-400 font-normal">(optional — personalizes the message)</span></label>
+      <select name="lead_id" class="select text-sm">
+        <option value="">— none —</option>
+        {% for l in leads %}
+          <option value="{{ l.id }}" {% if selected_lead_id == l.id|string %}selected{% endif %}>{{ l.name }}{% if l.company %} — {{ l.company }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary" {% if not ai_enabled %}disabled{% endif %}>Draft messages</button>
+  </form>
+
+  {% if result %}
+  <div class="space-y-4">
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">LinkedIn DM</h3>
+        <button onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.innerText); this.textContent='Copied!'" type="button" class="text-xs text-brand-600 hover:underline">Copy</button>
+      </div>
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 whitespace-pre-line">{{ result.linkedin }}</div>
+    </div>
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">WhatsApp</h3>
+        <button onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.innerText); this.textContent='Copied!'" type="button" class="text-xs text-brand-600 hover:underline">Copy</button>
+      </div>
+      <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-slate-800 whitespace-pre-line">{{ result.whatsapp }}</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

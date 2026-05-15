@@ -152,6 +152,15 @@ def create_activity_for_message(db: Session, message: EmailMessage, user_id: int
 
     client_id, lead_id, deal_id = _match_to_crm_record(db, message)
 
+    # Persist the match onto the message itself so /mail filters, lead
+    # timelines and reply-detection can query EmailMessage by lead/client/deal.
+    if message.lead_id is None and lead_id:
+        message.lead_id = lead_id
+    if message.client_id is None and client_id:
+        message.client_id = client_id
+    if message.deal_id is None and deal_id:
+        message.deal_id = deal_id
+
     # Outbound messages may already have an Activity created at send-time —
     # link this message to it instead of creating a duplicate.
     if not message.is_inbound and lead_id and message.subject:
@@ -169,6 +178,9 @@ def create_activity_for_message(db: Session, message: EmailMessage, user_id: int
             message.activity_id = existing.id
             return existing
 
+    # Emails are events, not tasks — mark them complete so they appear in
+    # /activities "Recent activity" alongside outbound sends.
+    when = message.received_at or message.sent_at or _now()
     activity = Activity(
         type=ActivityType.EMAIL,
         subject=message.subject or "(No subject)",
@@ -177,6 +189,8 @@ def create_activity_for_message(db: Session, message: EmailMessage, user_id: int
         lead_id=lead_id,
         deal_id=deal_id,
         created_by_id=user_id,
+        completed=True,
+        completed_at=when,
     )
     db.add(activity)
     db.flush()
@@ -191,6 +205,37 @@ def create_activity_for_message(db: Session, message: EmailMessage, user_id: int
     return activity
 
 
+def resolve_followups_for_reply(db: Session, lead_id: int | None, reply_time: datetime | None, contact_name: str | None = None) -> int:
+    """When a contact replies, auto-close any open follow-up TASK reminders
+    tied to that contact. We only close tasks created BEFORE the reply —
+    fresh tasks created after a reply are legitimate next steps.
+
+    Returns the count of tasks closed."""
+    if not lead_id:
+        return 0
+    when = reply_time or _now()
+
+    tasks = (
+        db.query(Activity)
+        .filter(
+            Activity.type == ActivityType.TASK,
+            Activity.completed == False,
+            Activity.created_at < when,
+            Activity.lead_id == lead_id,
+        )
+        .all()
+    )
+    if not tasks:
+        return 0
+
+    note = f"\n\n[Auto-closed — {contact_name or 'contact'} replied on {when.strftime('%b %d')}]"
+    for t in tasks:
+        t.completed = True
+        t.completed_at = when
+        t.body = (t.body or "") + note
+    return len(tasks)
+
+
 def link_messages_to_activities(db: Session, user_id: int) -> None:
     # Link newly synced messages to activities if not already linked
     messages = (
@@ -199,9 +244,19 @@ def link_messages_to_activities(db: Session, user_id: int) -> None:
         .filter(EmailMessage.created_at > _now() - timedelta(hours=24))
         .all()
     )
+    closed_total = 0
     for msg in messages:
         create_activity_for_message(db, msg, user_id)
+        if msg.is_inbound and msg.lead_id:
+            lead = db.get(Lead, msg.lead_id)
+            closed_total += resolve_followups_for_reply(
+                db, msg.lead_id,
+                msg.received_at or msg.created_at,
+                lead.name if lead else None,
+            )
     db.commit()
+    if closed_total:
+        print(f"[mail_sync] auto-closed {closed_total} follow-up task(s) on reply detection")
 
 
 async def send_mail(db: Session, account: MailAccount, to: list[str], cc: list[str] | None, subject: str, body_html: str, client_id: int | None, lead_id: int | None, deal_id: int | None) -> str | None:

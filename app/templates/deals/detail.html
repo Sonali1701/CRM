@@ -96,6 +96,137 @@
       </form>
     </div>
 
+    <!-- MEDDIC qualification -->
+    {% set band_colors = {
+      'strong': 'bg-emerald-100 text-emerald-700',
+      'average': 'bg-amber-100 text-amber-700',
+      'weak': 'bg-red-100 text-red-700',
+    } %}
+    {% set meddic_labels = {
+      'metrics': ('Metrics', 'Has the client quantified the business impact?'),
+      'economic_buyer': ('Economic Buyer', 'Have we identified & engaged budget authority?'),
+      'decision_criteria': ('Decision Criteria', 'Do we know how they will choose a vendor?'),
+      'decision_process': ('Decision Process', 'Do we know the procurement steps & owners?'),
+      'identify_pain': ('Identify Pain', 'Have we confirmed a specific named pain?'),
+      'champion': ('Champion', 'Do we have an internal advocate?'),
+    } %}
+    <div class="card p-5" id="meddic">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-medium text-sm">MEDDIC Qualification
+          {% if qualification %}
+            <span class="badge ml-2 {{ band_colors.get(qualification.overall_band, 'bg-slate-100 text-slate-500') }}">
+              {{ qualification.total_score }}/{{ qualification.total_max }} · {{ qualification.overall_band }}
+            </span>
+          {% endif %}
+        </h2>
+        <form method="post" action="/deals/{{ deal.id }}/qualification/ai-score">
+          <button type="submit" class="btn btn-secondary btn-sm" title="AI scores from deal notes + activities">
+            AI re-score
+          </button>
+        </form>
+      </div>
+      {% if qualification and qualification.last_scored_at %}
+        <p class="text-xs text-slate-400 mb-3">
+          Last scored {{ qualification.last_scored_at | date }}
+          {% if qualification.last_scored_by_ai %}by AI{% elif qualification.last_scored_by %}by {{ qualification.last_scored_by.full_name }}{% endif %}
+        </p>
+      {% endif %}
+      <form method="post" action="/deals/{{ deal.id }}/qualification" class="space-y-3">
+        {% for dim, (label, hint) in meddic_labels.items() %}
+          {% set score = (qualification[dim + '_score'] if qualification else 0) %}
+          {% set notes = (qualification[dim + '_notes'] if qualification else '') %}
+          <div class="grid sm:grid-cols-[140px_60px_1fr] gap-2 items-start py-2 border-b border-slate-100 last:border-0">
+            <div>
+              <p class="text-sm font-medium text-slate-800">{{ label }}</p>
+              <p class="text-xs text-slate-400">{{ hint }}</p>
+            </div>
+            <select name="{{ dim }}_score" class="select text-sm py-1">
+              {% for s in [0, 1, 2, 3] %}
+                <option value="{{ s }}" {% if score == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <input name="{{ dim }}_notes" class="input text-sm py-1" placeholder="Evidence / notes" value="{{ notes or '' }}" />
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary btn-sm">Save qualification</button>
+        <span class="text-xs text-slate-400 ml-2">0 = unknown · 1 = weak · 2 = partial · 3 = strong</span>
+      </form>
+    </div>
+
+    <!-- Mutual Close Plan -->
+    <div class="card p-5" id="close-plan">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-medium text-sm">Mutual Close Plan
+          {% if close_plan and close_plan.steps %}
+            <span class="badge ml-2 bg-indigo-100 text-indigo-700">
+              {{ close_plan.progress_pct }}% · {{ close_plan.steps | selectattr('status.value', 'equalto', 'done') | list | length }}/{{ close_plan.steps | length }} done
+            </span>
+          {% endif %}
+        </h2>
+        <div class="flex gap-2">
+          {% if not close_plan or not close_plan.steps %}
+          <form method="post" action="/deals/{{ deal.id }}/close-plan/ai-draft">
+            <button type="submit" class="btn btn-secondary btn-sm">AI draft</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <form method="post" action="/deals/{{ deal.id }}/close-plan" class="space-y-2 mb-4">
+        <div class="grid sm:grid-cols-[1fr_180px] gap-2">
+          <input name="summary" class="input text-sm" placeholder="One-line summary of the plan"
+                 value="{{ close_plan.summary or '' if close_plan else '' }}" />
+          <input type="date" name="target_close_date" class="input text-sm"
+                 value="{{ close_plan.target_close_date or '' if close_plan else '' }}" />
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Save header</button>
+      </form>
+
+      {% if close_plan and close_plan.steps %}
+        <ul class="space-y-2 mb-4">
+          {% set status_colors = {
+            'pending': 'bg-slate-100 text-slate-600',
+            'in_progress': 'bg-blue-100 text-blue-700',
+            'done': 'bg-emerald-100 text-emerald-700',
+            'blocked': 'bg-red-100 text-red-700',
+          } %}
+          {% for step in close_plan.steps %}
+          <li class="flex items-center gap-2 text-sm border-b border-slate-100 pb-2 last:border-0">
+            <span class="text-xs text-slate-400 w-6">{{ loop.index }}.</span>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium {% if step.status.value == 'done' %}line-through text-slate-400{% endif %}">{{ step.title }}</p>
+              <div class="text-xs text-slate-400 mt-0.5 flex gap-2 flex-wrap">
+                {% if step.owner_label %}<span>Owner: {{ step.owner_label }}</span>{% endif %}
+                {% if step.due_date %}<span>Due {{ step.due_date }}</span>{% endif %}
+                {% if step.notes %}<span class="truncate">{{ step.notes }}</span>{% endif %}
+              </div>
+            </div>
+            <form method="post" action="/deals/{{ deal.id }}/close-plan/steps/{{ step.id }}/status" class="flex items-center gap-1">
+              <select name="status" onchange="this.form.submit()" class="select text-xs py-1 {{ status_colors.get(step.status.value, '') }}">
+                {% for st in close_step_statuses %}
+                  <option value="{{ st.value }}" {% if step.status == st %}selected{% endif %}>{{ st.value | humanize }}</option>
+                {% endfor %}
+              </select>
+            </form>
+            <form method="post" action="/deals/{{ deal.id }}/close-plan/steps/{{ step.id }}/delete">
+              <button class="text-xs text-slate-300 hover:text-red-500" title="Remove">✕</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <form method="post" action="/deals/{{ deal.id }}/close-plan/steps" class="space-y-2 bg-slate-50 p-3 rounded-lg">
+        <input name="title" required class="input text-sm" placeholder="New step title *" />
+        <div class="grid grid-cols-3 gap-2">
+          <input name="owner_label" class="input text-sm" placeholder="Owner (us / client / name)" />
+          <input type="date" name="due_date" class="input text-sm" />
+          <input name="notes" class="input text-sm" placeholder="Notes (optional)" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">+ Add step</button>
+      </form>
+    </div>
+
     <!-- Activity log -->
     <div class="card p-5">
       <h2 class="font-medium mb-3 text-sm">Activity Log</h2>
@@ -231,7 +362,12 @@
           Generate Proposal
         </button>
       </form>
-      <p class="text-xs text-slate-500 mt-2">AI drafts a full staffing proposal using this deal's data + linked meeting MOMs + your company profile.</p>
+      <form method="post" action="/ai-tools/sow/{{ deal.id }}" class="mt-2">
+        <button type="submit" class="btn btn-secondary btn-sm w-full">
+          Draft SOW
+        </button>
+      </form>
+      <p class="text-xs text-slate-500 mt-2">AI drafts a full staffing proposal or SOW using this deal's data + linked meeting MOMs + your company profile.</p>
     </div>
 
     <!-- Deal Risk -->

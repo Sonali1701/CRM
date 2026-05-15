@@ -32,6 +32,26 @@
     <h1 class="text-xl font-semibold">New Company</h1>
   </div>
 
+  {% set fv = form_values if form_values is defined else {} %}
+
+  {% if duplicate is defined and duplicate %}
+  <div class="card p-4 mb-5 bg-amber-50 border-amber-300">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-amber-900">Possible duplicate — match on {{ duplicate.match_basis }}</p>
+        <p class="text-sm text-amber-800 mt-1">
+          <a href="/clients/{{ duplicate.client.id }}" class="font-medium underline">{{ duplicate.client.name }}</a>
+          {% if duplicate.client.industry %} · {{ duplicate.client.industry }}{% endif %}
+          {% if duplicate.client.website %} · {{ duplicate.client.website }}{% endif %}
+          {% if duplicate.client.created_at %} · added {{ duplicate.client.created_at | date }}{% endif %}
+        </p>
+        <p class="text-xs text-amber-700 mt-1">Open the existing record to update it, or tick "Create anyway" below and re-submit if this really is a different company.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card p-6 space-y-5">
 
     <!-- Website enrichment -->
@@ -103,34 +123,41 @@
     <hr class="border-slate-200" />
 
     <form method="post" action="/clients/new" class="space-y-4">
-      <input type="hidden" name="website" :value="website" />
+      <input type="hidden" name="website" :value="website" value="{{ fv.get('website', '') }}" />
+
+      {% if duplicate is defined and duplicate %}
+      <label class="flex items-center gap-2 text-sm text-slate-800 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <input type="checkbox" name="force_create" value="1" class="rounded" />
+        Create anyway — this is a different company despite the match
+      </label>
+      {% endif %}
 
       <div class="grid sm:grid-cols-2 gap-4">
         <div class="sm:col-span-2">
           <label class="block text-sm font-medium mb-1">Company Name <span class="text-red-500">*</span></label>
-          <input id="f-name" name="name" required class="input" placeholder="e.g. Acme Healthcare" />
+          <input id="f-name" name="name" required class="input" placeholder="e.g. Acme Healthcare" value="{{ fv.get('name', '') }}" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Type</label>
           <select name="type_" class="select">
-            {% for t in types %}<option value="{{ t.value }}">{{ t.value | humanize }}</option>{% endfor %}
+            {% for t in types %}<option value="{{ t.value }}" {% if fv.get('type_') == t.value %}selected{% endif %}>{{ t.value | humanize }}</option>{% endfor %}
           </select>
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Industry</label>
-          <input id="f-industry" name="industry" class="input" placeholder="Healthcare, Technology…" />
+          <input id="f-industry" name="industry" class="input" placeholder="Healthcare, Technology…" value="{{ fv.get('industry', '') }}" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Email</label>
-          <input type="email" name="email" class="input" placeholder="info@company.com" />
+          <input type="email" name="email" class="input" placeholder="info@company.com" value="{{ fv.get('email', '') }}" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Phone</label>
-          <input name="phone" class="input" placeholder="+1 555 0100" />
+          <input name="phone" class="input" placeholder="+1 555 0100" value="{{ fv.get('phone', '') }}" />
         </div>
         <div class="sm:col-span-2">
           <label class="block text-sm font-medium mb-1">LinkedIn</label>
-          <input id="f-linkedin" name="linkedin_url" class="input" placeholder="https://linkedin.com/company/..." />
+          <input id="f-linkedin" name="linkedin_url" class="input" placeholder="https://linkedin.com/company/..." value="{{ fv.get('linkedin_url', '') }}" />
         </div>
       </div>
 
@@ -138,9 +165,9 @@
       <div>
         <p class="text-sm font-medium mb-2">Headquarters</p>
         <div class="grid sm:grid-cols-3 gap-3">
-          <div><label class="block text-xs text-slate-500 mb-1">City</label><input name="hq_city" class="input" placeholder="City" /></div>
-          <div><label class="block text-xs text-slate-500 mb-1">State / Province</label><input name="hq_state" class="input" placeholder="State" /></div>
-          <div><label class="block text-xs text-slate-500 mb-1">Country</label><input name="hq_country" class="input" placeholder="Country" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1">City</label><input name="hq_city" class="input" placeholder="City" value="{{ fv.get('hq_city', '') }}" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1">State / Province</label><input name="hq_state" class="input" placeholder="State" value="{{ fv.get('hq_state', '') }}" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1">Country</label><input name="hq_country" class="input" placeholder="Country" value="{{ fv.get('hq_country', '') }}" /></div>
         </div>
       </div>
 
@@ -149,19 +176,19 @@
         <label class="block text-sm font-medium mb-1">Account Owner</label>
         <select name="owner_id" class="select w-56">
           <option value="">Unassigned</option>
-          {% for rep in reps %}<option value="{{ rep.id }}">{{ rep.full_name }}</option>{% endfor %}
+          {% for rep in reps %}<option value="{{ rep.id }}" {% if fv.get('owner_id') == rep.id|string %}selected{% endif %}>{{ rep.full_name }}</option>{% endfor %}
         </select>
       </div>
       {% endif %}
 
       <div>
         <label class="block text-sm font-medium mb-1">Description</label>
-        <textarea id="f-description" name="description" rows="3" class="textarea" placeholder="What this company does — auto-filled from website if available"></textarea>
+        <textarea id="f-description" name="description" rows="3" class="textarea" placeholder="What this company does — auto-filled from website if available">{{ fv.get('description', '') }}</textarea>
       </div>
 
       <div>
         <label class="block text-sm font-medium mb-1">Internal Notes</label>
-        <textarea name="notes" rows="2" class="textarea" placeholder="Private notes about this company"></textarea>
+        <textarea name="notes" rows="2" class="textarea" placeholder="Private notes about this company">{{ fv.get('notes', '') }}</textarea>
       </div>
 
       <div class="flex gap-3 pt-2">

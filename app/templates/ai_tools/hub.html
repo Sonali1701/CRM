@@ -19,6 +19,78 @@
 
 <div class="grid sm:grid-cols-2 gap-4">
 
+  <a href="/ai-tools/briefing" class="card p-5 hover:shadow-md transition-shadow">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">Smart Daily Briefing</h2>
+        <p class="text-sm text-slate-500 mt-1">One-page morning view — overdue, today's tasks, at-risk deals, hot accounts. AI tells you what to focus on first.</p>
+      </div>
+    </div>
+  </a>
+
+  <a href="/ai-tools/coach" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-fuchsia-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-fuchsia-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">Sales Coach</h2>
+        <p class="text-sm text-slate-500 mt-1">Reads your last 30 days of activity and tells you exactly what to do this week — specific accounts, specific actions.</p>
+      </div>
+    </div>
+  </a>
+
+  <a href="/ai-tools/strategy" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6"/><path d="M4.22 4.22l4.24 4.24m7.07 7.07l4.24 4.24"/><path d="M1 12h6m10 0h6"/><path d="M4.22 19.78l4.24-4.24m7.07-7.07l4.24-4.24"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">Strategy Advisor</h2>
+        <p class="text-sm text-slate-500 mt-1">Which industries and accounts should you double down on? AI looks at your pipeline mix and recommends.</p>
+      </div>
+    </div>
+  </a>
+
+  <a href="/ai-tools/winloss" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">Win/Loss Analysis</h2>
+        <p class="text-sm text-slate-500 mt-1">AI patterns from your last 180 days of closed deals — what you win on, what you lose on, signals to watch.</p>
+      </div>
+    </div>
+  </a>
+
+  <a href="/ai-tools/rates" class="card p-5 hover:shadow-md transition-shadow">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">Rate Card Recommender</h2>
+        <p class="text-sm text-slate-500 mt-1">Search past deals by role/skill/geo and get median, average, and range from your own pipeline. No AI required.</p>
+      </div>
+    </div>
+  </a>
+
+  <a href="/ai-tools/social" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-900">LinkedIn / WhatsApp Drafter</h2>
+        <p class="text-sm text-slate-500 mt-1">Short, conversational outreach for LinkedIn DM and WhatsApp — copy-ready, with placeholders.</p>
+      </div>
+    </div>
+  </a>
+
   <a href="/ai-tools/meeting" class="card p-5 hover:shadow-md transition-shadow {% if not ai_enabled %}opacity-60 pointer-events-none{% endif %}">
     <div class="flex items-start gap-3">
       <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">

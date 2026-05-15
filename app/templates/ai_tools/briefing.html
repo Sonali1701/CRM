@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Daily Briefing – AI Tools – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-5xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/ai-tools" class="text-slate-400 hover:text-slate-600 text-sm">← AI Tools</a>
+    <h1 class="text-xl font-semibold">Daily Briefing</h1>
+    <span class="text-xs text-slate-500">{{ now.strftime('%A, %b %d') }}</span>
+  </div>
+
+  {% if focus %}
+  <div class="card p-5 mb-5 bg-indigo-50 border-indigo-200">
+    <h2 class="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">Today's focus</h2>
+    <p class="text-sm text-slate-800 leading-relaxed">{{ focus.focus }}</p>
+    {% if focus.top_action %}
+    <p class="mt-3 text-sm font-medium text-indigo-700">→ {{ focus.top_action }}</p>
+    {% endif %}
+  </div>
+  {% elif not ai_enabled %}
+  <div class="card p-4 mb-5 bg-amber-50 border-amber-200 text-sm text-amber-800">
+    Set <code>GEMINI_API_KEY</code> or <code>GROQ_API_KEY</code> to get an AI-narrated focus paragraph.
+  </div>
+  {% endif %}
+
+  <div class="grid lg:grid-cols-2 gap-4">
+    <div class="card p-4">
+      <h2 class="font-medium text-sm text-slate-700 mb-2">Overdue ({{ overdue | length }})</h2>
+      {% if overdue %}
+        <ul class="space-y-2">
+          {% for a in overdue %}
+            <li class="text-sm flex justify-between gap-2">
+              <span class="truncate">{{ a.subject }}</span>
+              <span class="text-xs text-red-500 whitespace-nowrap">{{ a.due_at | date }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-400">Nothing overdue.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-4">
+      <h2 class="font-medium text-sm text-slate-700 mb-2">Due today ({{ today_acts | length }})</h2>
+      {% if today_acts %}
+        <ul class="space-y-2">
+          {% for a in today_acts %}
+            <li class="text-sm flex justify-between gap-2">
+              <span class="truncate">{{ a.subject }}</span>
+              <span class="text-xs text-slate-400 whitespace-nowrap">{{ a.due_at.strftime('%H:%M') }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-400">Nothing due today.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-4">
+      <h2 class="font-medium text-sm text-slate-700 mb-2">At-risk deals ({{ risky_deals | length }})</h2>
+      {% if risky_deals %}
+        <ul class="space-y-2">
+          {% for d, r in risky_deals %}
+            <li class="text-sm">
+              <a href="/deals/{{ d.id }}" class="text-brand-600 hover:underline">{{ d.title }}</a>
+              <span class="text-xs ml-1 {% if r.level == 'high' %}text-red-500{% else %}text-amber-600{% endif %}">{{ r.level }}</span>
+              <span class="text-xs text-slate-400">· {{ r.days_since_activity }}d quiet · {{ d.stage_label }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-400">No at-risk deals.</p>
+      {% endif %}
+    </div>
+
+    <div class="card p-4">
+      <h2 class="font-medium text-sm text-slate-700 mb-2">Hot deals (7d activity)</h2>
+      {% if hot_deals %}
+        <ul class="space-y-2">
+          {% for d in hot_deals %}
+            <li class="text-sm">
+              <a href="/deals/{{ d.id }}" class="text-brand-600 hover:underline">{{ d.title }}</a>
+              <span class="text-xs text-slate-400">· {{ d.stage_label }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-sm text-slate-400">No recent activity on open deals.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <p class="text-xs text-slate-400 mt-4">Open deals total: {{ open_deal_count }}</p>
+</div>
+{% endblock %}

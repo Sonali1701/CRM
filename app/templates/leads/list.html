@@ -181,11 +181,12 @@
           <input type="checkbox" class="rounded border-slate-300"
             @change="$event.target.checked ? selectAll() : clearAll()" />
         </th>
-        <th class="w-[24%]">Name</th>
-        <th class="w-[17%]">Title</th>
-        <th class="w-[17%]">Company</th>
-        <th class="w-[10%]">Status</th>
-        <th class="w-[17%]">Owner</th>
+        <th class="w-[22%]">Name</th>
+        <th class="w-[15%]">Title</th>
+        <th class="w-[15%]">Company</th>
+        <th class="w-[9%]">Status</th>
+        <th class="w-[15%]">Owner</th>
+        <th class="w-[10%]">Added</th>
         <th class="w-[7%]"></th>
       </tr>
     </thead>
@@ -327,6 +328,18 @@
                   @dragover.prevent
                   @drop.prevent="onDrop($event, 'mail-body')"
                   {% raw %}placeholder="Hi {{first_name}},&#10;&#10;Hope you're doing well at {{company}}…"{% endraw %}></textarea>
+      </div>
+
+      <!-- Auto follow-up scheduling -->
+      <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+        <label class="flex items-center gap-2 text-sm text-slate-800 flex-wrap">
+          <input type="checkbox" name="create_followup" value="1" checked class="rounded" />
+          <span>Create follow-up reminder in</span>
+          <input type="number" name="followup_days" value="5" min="1" max="60"
+                 class="input text-sm py-1 px-2 w-16" />
+          <span>days if no reply</span>
+        </label>
+        <p class="text-xs text-indigo-700/70 mt-1">Adds a Task per contact in your Upcoming follow-ups so you don't lose the thread.</p>
       </div>
 
       <!-- Preview -->

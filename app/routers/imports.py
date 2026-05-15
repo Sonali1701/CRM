@@ -377,6 +377,21 @@ def _import_leads(rows: list[dict], mapping: dict, user: User, db: Session) -> d
     first_col = mapping.get("first_name", "")
     # Build lookup of existing companies once so each row doesn't hit the DB
     client_map = {c.name.lower(): c.id for c in db.query(Client).all()}
+    # Email dedupe lookup — case-insensitive
+    existing_emails = {
+        e.lower(): lid
+        for (lid, e) in db.query(Lead.id, Lead.email).filter(Lead.email.isnot(None)).all()
+        if e
+    }
+    # Name+company fallback dedupe set
+    existing_name_co = {
+        (f.lower().strip(), (l or "").lower().strip(), (c or "").lower().strip())
+        for (f, l, c) in db.query(Lead.first_name, Lead.last_name, Lead.company).all()
+        if f
+    }
+    # Also dedupe within this batch — re-importing a CSV with internal duplicates
+    seen_emails: set[str] = set()
+    seen_name_co: set[tuple[str, str, str]] = set()
 
     for i, row in enumerate(rows, start=2):
         first_name_raw = _get_val(row, first_col)
@@ -384,14 +399,39 @@ def _import_leads(rows: list[dict], mapping: dict, user: User, db: Session) -> d
             skipped.append({"row": i, "data": row, "reason": "First name is empty"})
             continue
         company_val = _trunc(_get_val(row, mapping.get("company", "")), 255)
+        email_val = _trunc(_get_val(row, mapping.get("email", "")), 255)
+        last_val = _trunc(_get_val(row, mapping.get("last_name", "")), 100)
         client_id = client_map.get(company_val.lower()) if company_val else None
+
+        # Duplicate detection — email is the strongest signal
+        if email_val:
+            ek = email_val.lower()
+            if ek in existing_emails:
+                skipped.append({"row": i, "data": row, "reason": f"email '{email_val}' already exists (lead #{existing_emails[ek]})"})
+                continue
+            if ek in seen_emails:
+                skipped.append({"row": i, "data": row, "reason": f"email '{email_val}' appears earlier in this file"})
+                continue
+            seen_emails.add(ek)
+
+        # Fallback: same first+last+company already in DB (only if all three present)
+        if first_name_raw and last_val and company_val:
+            key = (first_name_raw.lower().strip(), last_val.lower().strip(), company_val.lower().strip())
+            if key in existing_name_co:
+                skipped.append({"row": i, "data": row, "reason": f"'{first_name_raw} {last_val}' at '{company_val}' already exists"})
+                continue
+            if key in seen_name_co:
+                skipped.append({"row": i, "data": row, "reason": f"'{first_name_raw} {last_val}' at '{company_val}' appears earlier in this file"})
+                continue
+            seen_name_co.add(key)
+
         lead = Lead(
             first_name=_trunc(first_name_raw, 100),
-            last_name=_trunc(_get_val(row, mapping.get("last_name", "")), 100),
+            last_name=last_val,
             job_title=_trunc(_get_val(row, mapping.get("job_title", "")), 255),
             company=company_val,
             client_id=client_id,
-            email=_trunc(_get_val(row, mapping.get("email", "")), 255),
+            email=email_val,
             mobile=_trunc(_get_val(row, mapping.get("mobile", "")), 50),
             phone=_trunc(_get_val(row, mapping.get("phone", "")), 50),
             linkedin_url=_trunc(_get_val(row, mapping.get("linkedin_url", "")), 500),
@@ -420,6 +460,10 @@ VALID_CLIENT_TYPES = {t.value for t in ClientType}
 def _import_clients(rows: list[dict], mapping: dict, user: User, db: Session) -> dict:
     imported, skipped = [], []
     name_col = mapping.get("name", "")
+    # Pre-load all existing names lowercased so each row doesn't hit the DB,
+    # and so we catch case differences ("Acme" vs "ACME").
+    existing_names = {n.lower().strip() for (n,) in db.query(Client.name).all() if n}
+    seen_names: set[str] = set()
 
     for i, row in enumerate(rows, start=2):
         name = _get_val(row, name_col)
@@ -431,9 +475,14 @@ def _import_clients(rows: list[dict], mapping: dict, user: User, db: Session) ->
         if type_raw not in VALID_CLIENT_TYPES:
             type_raw = "direct"
 
-        if db.query(Client).filter(Client.name == name).first():
+        nk = name.lower().strip()
+        if nk in existing_names:
             skipped.append({"row": i, "data": row, "reason": f"'{name}' already exists"})
             continue
+        if nk in seen_names:
+            skipped.append({"row": i, "data": row, "reason": f"'{name}' appears earlier in this file"})
+            continue
+        seen_names.add(nk)
 
         client = Client(
             name=_trunc(name, 255),

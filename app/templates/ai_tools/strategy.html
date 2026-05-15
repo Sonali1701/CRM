@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Strategy Advisor – AI Tools – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/ai-tools" class="text-slate-400 hover:text-slate-600 text-sm">← AI Tools</a>
+    <h1 class="text-xl font-semibold">Enterprise Strategy Advisor</h1>
+  </div>
+
+  {% if not ai_enabled %}
+  <div class="card p-4 mb-5 bg-amber-50 border-amber-200 text-sm text-amber-800">No AI provider configured.</div>
+  {% elif not result %}
+  <div class="card p-6 text-center text-slate-500 text-sm">Couldn't reach the AI provider. Pipeline summary used as input:</div>
+  {% else %}
+    {% if result.guidance %}
+    <div class="card p-5 mb-4 bg-indigo-50 border-indigo-200">
+      <p class="text-sm text-slate-800 leading-relaxed">{{ result.guidance }}</p>
+    </div>
+    {% endif %}
+    <div class="grid sm:grid-cols-2 gap-4 mb-4">
+      {% if result.top_industries %}
+      <div class="card p-4">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Top industries</h3>
+        <ul class="space-y-3 text-sm">
+          {% for i in result.top_industries %}
+          <li>
+            <p class="font-medium text-slate-900">{{ i.industry }}</p>
+            {% if i.why %}<p class="text-xs text-slate-600">{{ i.why }}</p>{% endif %}
+            {% if i.opportunity_size %}<p class="text-xs text-emerald-600 mt-0.5">{{ i.opportunity_size }}</p>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      {% if result.top_accounts %}
+      <div class="card p-4">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Top accounts</h3>
+        <ul class="space-y-3 text-sm">
+          {% for a in result.top_accounts %}
+          <li>
+            <p class="font-medium text-slate-900">{{ a.account }}</p>
+            {% if a.why %}<p class="text-xs text-slate-600">{{ a.why }}</p>{% endif %}
+            {% if a.action %}<p class="text-xs text-indigo-600 mt-0.5">→ {{ a.action }}</p>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+    {% if result.underleveraged %}
+    <div class="card p-4">
+      <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Under-leveraged segments</h3>
+      <ul class="space-y-1 text-sm text-slate-700">{% for u in result.underleveraged %}<li>• {{ u }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <details class="mt-5">
+    <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">Pipeline data used</summary>
+    <pre class="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 whitespace-pre-wrap">{{ raw_context }}</pre>
+  </details>
+</div>
+{% endblock %}

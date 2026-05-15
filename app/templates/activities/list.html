@@ -2,8 +2,12 @@
 {% block title %}Activities – Radixsol CRM{% endblock %}
 {% block content %}
 
-{% macro activity_icon(t) -%}
-  {% if t == 'email' %}
+{% macro activity_icon(t, inbound=False) -%}
+  {% if t == 'email' and inbound %}
+    <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0" title="Reply received">
+      <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+    </div>
+  {% elif t == 'email' %}
     <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
       <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
     </div>
@@ -26,18 +30,21 @@
   {% endif %}
 {%- endmacro %}
 
-{% macro activity_row(act, show_complete=False) -%}
+{% macro activity_row(act, show_complete=False, inbound=False) -%}
   <li class="flex gap-3 py-3 border-b border-slate-100 last:border-0">
-    {{ activity_icon(act.type.value) }}
+    {{ activity_icon(act.type.value, inbound) }}
     <div class="flex-1 min-w-0">
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
-          <p class="font-medium text-sm text-slate-900 truncate" title="{{ act.subject }}">{{ act.subject }}</p>
-          {% if act.body %}<p class="text-xs text-slate-500 mt-0.5 line-clamp-2">{{ act.body[:160] }}{% if act.body|length > 160 %}…{% endif %}</p>{% endif %}
+          <div class="flex items-center gap-2">
+            {% if inbound %}<span class="badge bg-emerald-100 text-emerald-700 text-[10px] uppercase tracking-wide">Reply</span>{% endif %}
+            <p class="font-medium text-sm text-slate-900 truncate" title="{{ act.subject }}">{{ act.subject }}</p>
+          </div>
+          {% if act.body %}<p class="text-xs text-slate-500 mt-0.5 line-clamp-2">{{ act.body[:240] }}{% if act.body|length > 240 %}…{% endif %}</p>{% endif %}
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1.5">
             {% if act.type.value == 'email' and act.lead %}
               <span class="inline-flex items-center gap-1">
-                <span class="text-slate-400">To:</span>
+                <span class="text-slate-400">{% if inbound %}From:{% else %}To:{% endif %}</span>
                 <a href="/leads/{{ act.lead.id }}" class="hover:text-brand-600">{{ act.lead.name }}</a>
                 {% if act.lead.email %}<span class="text-slate-400">&lt;{{ act.lead.email }}&gt;</span>{% endif %}
               </span>
@@ -129,7 +136,7 @@
   <div class="card p-4 mb-5 border-l-4 border-red-400">
     <h2 class="font-medium text-sm text-red-600 mb-1">Overdue ({{ overdue | length }})</h2>
     <ul>
-      {% for act in overdue %}{{ activity_row(act, show_complete=True) }}{% endfor %}
+      {% for act in overdue %}{{ activity_row(act, show_complete=True, inbound=(act.id in inbound_ids)) }}{% endfor %}
     </ul>
   </div>
 {% endif %}
@@ -139,7 +146,38 @@
     <h2 class="font-medium text-sm text-slate-700 mb-1">Upcoming follow-ups</h2>
     {% if upcoming %}
       <ul>
-        {% for act in upcoming %}{{ activity_row(act, show_complete=True) }}{% endfor %}
+        {% for act in upcoming %}{{ activity_row(act, show_complete=True, inbound=(act.id in inbound_ids)) }}{% endfor %}
+      </ul>
+    {% elif suggested %}
+      <p class="text-xs text-slate-500 mb-2">No reminders scheduled — recent emails without a follow-up:</p>
+      <ul>
+        {% for act in suggested %}
+          <li class="flex gap-3 py-3 border-b border-slate-100 last:border-0">
+            {{ activity_icon(act.type.value) }}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="font-medium text-sm text-slate-900 truncate" title="{{ act.subject }}">{{ act.subject }}</p>
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1.5">
+                    {% if act.lead %}
+                      <span class="inline-flex items-center gap-1">
+                        <span class="text-slate-400">To:</span>
+                        <a href="/leads/{{ act.lead.id }}" class="hover:text-brand-600">{{ act.lead.name }}</a>
+                      </span>
+                    {% endif %}
+                    <span class="text-slate-400">{{ act.created_at | date }}</span>
+                  </div>
+                </div>
+                <form method="post" action="/activities/{{ act.id }}/schedule-followup" class="flex-shrink-0 flex items-center gap-1">
+                  <input type="hidden" name="redirect_to" value="/activities" />
+                  <input type="number" name="days" value="3" min="1" max="60"
+                         class="input text-xs py-1 px-2 w-12" />
+                  <button class="text-xs text-indigo-600 hover:underline whitespace-nowrap" title="Schedule reminder N days from now">+ Remind</button>
+                </form>
+              </div>
+            </div>
+          </li>
+        {% endfor %}
       </ul>
     {% else %}
       <p class="text-sm text-slate-400 py-4">No upcoming follow-ups.</p>
@@ -150,7 +188,7 @@
     <h2 class="font-medium text-sm text-slate-700 mb-1">Recent activity</h2>
     {% if recent %}
       <ul>
-        {% for act in recent %}{{ activity_row(act) }}{% endfor %}
+        {% for act in recent %}{{ activity_row(act, inbound=(act.id in inbound_ids)) }}{% endfor %}
       </ul>
     {% else %}
       <p class="text-sm text-slate-400 py-4">No completed activities yet.</p>
@@ -192,6 +230,15 @@
         <div class="mb-3">
           <label class="block text-sm font-medium mb-1">Message</label>
           <textarea name="body_html" x-model="body" rows="9" required class="textarea text-sm"></textarea>
+        </div>
+        <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg mb-3">
+          <label class="flex items-center gap-2 text-sm text-slate-800 flex-wrap">
+            <input type="checkbox" name="create_followup" value="1" checked class="rounded" />
+            <span>Create follow-up reminder in</span>
+            <input type="number" name="followup_days" value="5" min="1" max="60"
+                   class="input text-sm py-1 px-2 w-16" />
+            <span>days if no reply</span>
+          </label>
         </div>
         <div class="flex gap-2 justify-end">
           <button type="button" @click="showModal = false" class="btn btn-secondary">Cancel</button>

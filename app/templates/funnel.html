@@ -13,68 +13,128 @@
   </a>
 </div>
 
-<div class="grid lg:grid-cols-5 gap-6 mb-8">
-  {% for stage in stages %}
-  <a href="/leads?status={{ stage.status.value }}" class="card p-5 hover:shadow-md transition-shadow border {{ stage.color.split(' ')[2] }} border">
-    <div class="text-3xl font-bold text-slate-900 mb-1">{{ stage.count }}</div>
-    <div class="text-sm font-medium {{ stage.color.split(' ')[1] }}">{{ stage.label }}</div>
-    {% if total %}
-    <div class="text-xs text-slate-400 mt-1">{{ stage.pct_total }}% of total</div>
-    {% endif %}
-  </a>
-  {% endfor %}
-  <a href="/leads?status=disqualified" class="card p-5 hover:shadow-md transition-shadow border border-red-200">
-    <div class="text-3xl font-bold text-slate-900 mb-1">{{ disqualified | length }}</div>
-    <div class="text-sm font-medium text-red-600">Disqualified</div>
-    {% if total %}
-    <div class="text-xs text-slate-400 mt-1">{{ (disqualified | length / total * 100) | round | int }}% of total</div>
-    {% endif %}
-  </a>
-</div>
+<!-- ── SVG Trapezoid Funnel ─────────────────────────────────── -->
+{% set SVG_W = 600 %}
+{% set SEG_H = 76 %}
+{% set GAP = 4 %}
+{% set N = stages | length %}
+{% set SVG_H = N * SEG_H + (N - 1) * GAP %}
 
-<!-- Visual Funnel -->
 <div class="card p-6 mb-8">
-  <h2 class="text-sm font-semibold text-slate-700 mb-5">Conversion Funnel</h2>
-  <div class="space-y-2">
-    {% set max_count = stages[0].count if stages else 1 %}
-    {% for stage in stages %}
-    {% set bar_w = [stage.pct_bar, 10] | max %}
-    <div class="flex items-center gap-3">
-      <div class="w-24 text-right text-xs text-slate-500 flex-shrink-0">{{ stage.label }}</div>
-      <div class="flex-1 relative h-9 bg-slate-100 rounded overflow-hidden">
-        <div class="{{ stage.bar_color }} h-full rounded transition-all duration-500 flex items-center px-3"
-             style="width: {{ bar_w }}%">
-          {% if stage.count > 0 %}
-          <span class="text-white text-xs font-semibold whitespace-nowrap">{{ stage.count }}</span>
-          {% endif %}
-        </div>
-        {% if stage.count == 0 %}
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">0</span>
+  <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-6 text-center">Conversion Funnel</h2>
+
+  <div class="flex gap-8 items-start">
+
+    <!-- Funnel SVG (left) -->
+    <div class="flex-1 min-w-0">
+      <svg viewBox="0 0 {{ SVG_W }} {{ SVG_H }}" class="w-full max-w-md mx-auto block" xmlns="http://www.w3.org/2000/svg">
+
+        {% for stage in stages %}
+        {% set y = loop.index0 * (SEG_H + GAP) %}
+
+        {# top edge width of this segment #}
+        {% set top_w = stage.funnel_px %}
+
+        {# bottom edge = next stage's top_w, or shrink 15% for last stage #}
+        {% if not loop.last %}
+          {% set next_stage = stages[loop.index0 + 1] %}
+          {% set bot_w = next_stage.funnel_px %}
+        {% else %}
+          {% set bot_w = [top_w - 60, 60] | max %}
         {% endif %}
-      </div>
-      {% if not loop.first %}
-      {% set prev = stages[loop.index0 - 1] %}
-      <div class="w-16 text-xs text-slate-400 flex-shrink-0">
-        {% if prev.count > 0 %}
-          {{ (stage.count / prev.count * 100) | round | int }}% conv.
-        {% else %}—{% endif %}
-      </div>
-      {% else %}
-      <div class="w-16 flex-shrink-0"></div>
-      {% endif %}
+
+        {% set top_l = (SVG_W - top_w) / 2 %}
+        {% set top_r = top_l + top_w %}
+        {% set bot_l = (SVG_W - bot_w) / 2 %}
+        {% set bot_r = bot_l + bot_w %}
+        {% set mid_y = y + SEG_H / 2 %}
+
+        <!-- Trapezoid segment -->
+        <polygon
+          points="{{ top_l | round(1) }},{{ y }} {{ top_r | round(1) }},{{ y }} {{ bot_r | round(1) }},{{ y + SEG_H }} {{ bot_l | round(1) }},{{ y + SEG_H }}"
+          fill="{{ stage.fill }}"
+          opacity="0.92"
+        />
+
+        <!-- Stage label -->
+        <text x="{{ SVG_W / 2 }}" y="{{ mid_y - 10 }}"
+              text-anchor="middle" dominant-baseline="middle"
+              font-size="13" font-weight="600" fill="white" font-family="system-ui,sans-serif">
+          {{ stage.label }}
+        </text>
+
+        <!-- Count + pct -->
+        <text x="{{ SVG_W / 2 }}" y="{{ mid_y + 14 }}"
+              text-anchor="middle" dominant-baseline="middle"
+              font-size="11" fill="rgba(255,255,255,0.85)" font-family="system-ui,sans-serif">
+          {{ stage.count }} contact{% if stage.count != 1 %}s{% endif %}
+          {% if stage.pct_total %}· {{ stage.pct_total }}%{% endif %}
+        </text>
+
+        {# Conversion arrow between stages #}
+        {% if not loop.last %}
+        {% set next_stage = stages[loop.index0 + 1] %}
+        {% set arrow_y = y + SEG_H + GAP / 2 %}
+        {% if stage.count > 0 %}
+          {% set conv_pct = (next_stage.count / stage.count * 100) | round | int %}
+          <text x="{{ SVG_W / 2 }}" y="{{ arrow_y }}"
+                text-anchor="middle" dominant-baseline="middle"
+                font-size="9" fill="#94a3b8" font-family="system-ui,sans-serif">
+            ▼ {{ conv_pct }}% converted
+          </text>
+        {% endif %}
+        {% endif %}
+
+        {% endfor %}
+
+      </svg>
     </div>
-    {% endfor %}
+
+    <!-- Stage legend + stats (right) -->
+    <div class="w-56 flex-shrink-0 space-y-2 pt-1">
+      {% for stage in stages %}
+      <a href="/leads?status={{ stage.status.value }}"
+         class="flex items-center gap-2.5 p-3 rounded-lg border hover:shadow-sm transition-shadow {{ stage.color }}">
+        <span class="w-3 h-3 rounded-sm flex-shrink-0" style="background:{{ stage.fill }}"></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-semibold truncate">{{ stage.label }}</div>
+          <div class="text-xs opacity-70">{{ stage.count }} · {{ stage.pct_total }}%</div>
+        </div>
+        {% if not loop.first %}
+        {% set prev = stages[loop.index0 - 1] %}
+        {% if prev.count > 0 %}
+        <span class="text-xs font-medium opacity-80">
+          {{ (stage.count / prev.count * 100) | round | int }}%↓
+        </span>
+        {% endif %}
+        {% endif %}
+      </a>
+      {% endfor %}
+
+      <!-- Disqualified separate -->
+      <a href="/leads?status=disqualified"
+         class="flex items-center gap-2.5 p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:shadow-sm transition-shadow mt-3">
+        <span class="w-3 h-3 rounded-sm flex-shrink-0 bg-red-400"></span>
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-semibold">Disqualified</div>
+          <div class="text-xs opacity-70">{{ disqualified | length }} contacts</div>
+        </div>
+      </a>
+    </div>
+
   </div>
 </div>
 
-<div class="grid lg:grid-cols-2 gap-6">
-
-  <!-- Contacts by stage -->
+<!-- ── Contacts by stage ──────────────────────────────────── -->
+<div class="grid lg:grid-cols-2 gap-6 mb-8">
   {% for stage in stages %}
   {% if stage.leads %}
   <div class="card overflow-hidden">
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-      <span class="text-sm font-semibold text-slate-700">{{ stage.label }}</span>
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-sm" style="background:{{ stage.fill }}"></span>
+        <span class="text-sm font-semibold text-slate-700">{{ stage.label }}</span>
+      </div>
       <span class="badge {{ stage.color }} text-xs">{{ stage.count }}</span>
     </div>
     <ul class="divide-y divide-slate-50">
@@ -100,12 +160,11 @@
   </div>
   {% endif %}
   {% endfor %}
-
 </div>
 
-<!-- Outreach Reminders -->
+<!-- ── Outreach Reminders ─────────────────────────────────── -->
 {% if reminders %}
-<div class="card overflow-hidden mt-6">
+<div class="card overflow-hidden">
   <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
     <span class="text-sm font-semibold text-slate-700">Outreach Reminders</span>
     <span class="badge bg-amber-50 text-amber-700 border-amber-200 text-xs">{{ reminders | length }}</span>

@@ -28,12 +28,13 @@ _COLORS = {
     LeadStatus.DISQUALIFIED: "bg-red-50 text-red-700 border-red-200",
 }
 
-_BAR_COLORS = {
-    LeadStatus.NEW: "bg-slate-400",
-    LeadStatus.CONTACTED: "bg-blue-400",
-    LeadStatus.QUALIFIED: "bg-indigo-500",
-    LeadStatus.CONVERTED: "bg-green-500",
-    LeadStatus.DISQUALIFIED: "bg-red-400",
+# SVG fill colors for the trapezoid funnel
+_FILL_HEX = {
+    LeadStatus.NEW: "#64748b",        # slate-500
+    LeadStatus.CONTACTED: "#3b82f6",  # blue-500
+    LeadStatus.QUALIFIED: "#6366f1",  # indigo-500
+    LeadStatus.CONVERTED: "#10b981",  # emerald-500
+    LeadStatus.DISQUALIFIED: "#ef4444",
 }
 
 
@@ -57,6 +58,8 @@ def funnel_view(request: Request, user: User = Depends(require_user), db: Sessio
         count = len(bucket)
         pct_total = round(count / total * 100) if total else 0
         pct_bar = round(count / top_count * 100) if top_count else 0
+        # Funnel segment width in SVG units (560 wide), min 80px so empty stages still visible
+        funnel_px = max(80, round(pct_bar / 100 * 560))
         stages.append({
             "status": status,
             "label": status.value.replace("_", " ").title(),
@@ -64,8 +67,9 @@ def funnel_view(request: Request, user: User = Depends(require_user), db: Sessio
             "count": count,
             "pct_total": pct_total,
             "pct_bar": pct_bar,
+            "funnel_px": funnel_px,
             "color": _COLORS[status],
-            "bar_color": _BAR_COLORS[status],
+            "fill": _FILL_HEX[status],
         })
 
     disqualified = by_status[LeadStatus.DISQUALIFIED]

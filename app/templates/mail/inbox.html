@@ -95,6 +95,10 @@
           {% if it.deal_id %}
             · <a href="/deals/{{ it.deal_id }}" class="text-brand-600 hover:underline">Deal</a>
           {% endif %}
+          {% if it.lead_outreach_notes %}
+            <p class="text-[10px] text-slate-400 mt-0.5 line-clamp-2"
+               title="{{ it.lead_outreach_summary or it.lead_outreach_notes }}">{{ it.lead_outreach_notes[:80] }}{% if it.lead_outreach_notes|length > 80 %}…{% endif %}</p>
+          {% endif %}
         </td>
         <td class="text-xs text-slate-500 whitespace-nowrap">
           {{ it.when | date if it.when else '—' }}

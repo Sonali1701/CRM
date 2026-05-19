@@ -185,6 +185,9 @@ def lead_create(
         status=LeadStatus.NEW,
     )
     db.add(lead)
+    db.flush()
+    from app.services.outreach_reminder import schedule_outreach_reminder
+    schedule_outreach_reminder(db, lead, user.id)
     db.commit()
     return flash(RedirectResponse("/leads", 303), "Contact created.")
 
@@ -238,6 +241,8 @@ def lead_update(
     lead.status = LeadStatus(status)
     if user.is_manager:
         lead.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
+    from app.services.outreach_reminder import schedule_outreach_reminder
+    schedule_outreach_reminder(db, lead, user.id)
     db.commit()
     return flash(RedirectResponse("/leads", 303), "Contact updated.")
 

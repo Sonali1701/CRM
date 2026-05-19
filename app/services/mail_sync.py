@@ -62,23 +62,25 @@ def _map_message_to_db(msg: dict[str, Any], mail_account_id: int, folder: str) -
 
 async def sync_mail_folder(db: Session, account: MailAccount, folder: str = "inbox") -> None:
     token = await ensure_account_access_token(db, account)
-    delta_link = account.inbox_delta_link if folder == "inbox" else account.sent_delta_link
 
-    if not delta_link:
-        # Initial sync: get first page and @odata.nextLink for delta
-        initial = await graph_get(
-            token,
-            f"/me/mailFolders/{folder}/messages?$select=id,internetMessageId,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,sentDateTime,receivedDateTime&$orderby=receivedDateTime desc&$top=50"
-        )
-        messages = initial.get("value", [])
-        delta_link = initial.get("@odata.nextLink")
-    else:
-        # Delta sync using stored link
-        resp = await graph_get(token, delta_link)
-        messages = resp.get("value", [])
-        delta_link = resp.get("@odata.nextLink")
+    select_fields = (
+        "id,internetMessageId,conversationId,subject,bodyPreview,body,"
+        "from,toRecipients,ccRecipients,sentDateTime,receivedDateTime"
+    )
 
-    added = 0
+    # Always fetch the 100 most-recent messages sorted by date so new mail
+    # is always visible. Prior delta-link approach stored @odata.nextLink
+    # (pagination to older messages) which caused syncs to drift backwards.
+    # Deduplication is handled below by provider_message_id.
+    resp = await graph_get(
+        token,
+        f"/me/mailFolders/{folder}/messages"
+        f"?$select={select_fields}"
+        f"&$orderby=receivedDateTime desc"
+        f"&$top=100",
+    )
+    messages = resp.get("value", [])
+
     for msg in messages:
         provider_id = msg.get("id")
         if not provider_id:
@@ -90,15 +92,7 @@ async def sync_mail_folder(db: Session, account: MailAccount, folder: str = "inb
         )
         if existing:
             continue
-
-        payload = _map_message_to_db(msg, account.id, folder)
-        db.add(EmailMessage(**payload))
-        added += 1
-
-    if folder == "inbox":
-        account.inbox_delta_link = delta_link
-    else:
-        account.sent_delta_link = delta_link
+        db.add(EmailMessage(**_map_message_to_db(msg, account.id, folder)))
 
     account.last_sync_at = _now()
     db.commit()

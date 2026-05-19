@@ -7,6 +7,7 @@ from app.flash import get_flash, clear_flash_response
 from app.routers import (
     auth, leads, clients, deals, activities, dashboard, users, pipeline, imports, mail,
     email_templates, sequences, reports, cron, ai_tools, settings as settings_router,
+    funnel,
 )
 
 app = FastAPI(title="Radixsol CRM")
@@ -20,6 +21,7 @@ app.include_router(activities.router, prefix="/activities")
 app.include_router(dashboard.router)
 app.include_router(users.router, prefix="/users")
 app.include_router(pipeline.router)
+app.include_router(funnel.router)
 app.include_router(imports.router, prefix="/import")
 app.include_router(mail.router, prefix="/mail")
 app.include_router(email_templates.router, prefix="/email-templates")

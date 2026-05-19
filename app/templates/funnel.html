@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Sales Funnel – Radixsol CRM{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-slate-900">Sales Funnel</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ total }} contact{% if total != 1 %}s{% endif %} total</p>
+  </div>
+  <a href="/leads/new" class="btn btn-primary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Contact
+  </a>
+</div>
+
+<div class="grid lg:grid-cols-5 gap-6 mb-8">
+  {% for stage in stages %}
+  <a href="/leads?status={{ stage.status.value }}" class="card p-5 hover:shadow-md transition-shadow border {{ stage.color.split(' ')[2] }} border">
+    <div class="text-3xl font-bold text-slate-900 mb-1">{{ stage.count }}</div>
+    <div class="text-sm font-medium {{ stage.color.split(' ')[1] }}">{{ stage.label }}</div>
+    {% if total %}
+    <div class="text-xs text-slate-400 mt-1">{{ stage.pct_total }}% of total</div>
+    {% endif %}
+  </a>
+  {% endfor %}
+  <a href="/leads?status=disqualified" class="card p-5 hover:shadow-md transition-shadow border border-red-200">
+    <div class="text-3xl font-bold text-slate-900 mb-1">{{ disqualified | length }}</div>
+    <div class="text-sm font-medium text-red-600">Disqualified</div>
+    {% if total %}
+    <div class="text-xs text-slate-400 mt-1">{{ (disqualified | length / total * 100) | round | int }}% of total</div>
+    {% endif %}
+  </a>
+</div>
+
+<!-- Visual Funnel -->
+<div class="card p-6 mb-8">
+  <h2 class="text-sm font-semibold text-slate-700 mb-5">Conversion Funnel</h2>
+  <div class="space-y-2">
+    {% set max_count = stages[0].count if stages else 1 %}
+    {% for stage in stages %}
+    {% set bar_w = [stage.pct_bar, 10] | max %}
+    <div class="flex items-center gap-3">
+      <div class="w-24 text-right text-xs text-slate-500 flex-shrink-0">{{ stage.label }}</div>
+      <div class="flex-1 relative h-9 bg-slate-100 rounded overflow-hidden">
+        <div class="{{ stage.bar_color }} h-full rounded transition-all duration-500 flex items-center px-3"
+             style="width: {{ bar_w }}%">
+          {% if stage.count > 0 %}
+          <span class="text-white text-xs font-semibold whitespace-nowrap">{{ stage.count }}</span>
+          {% endif %}
+        </div>
+        {% if stage.count == 0 %}
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">0</span>
+        {% endif %}
+      </div>
+      {% if not loop.first %}
+      {% set prev = stages[loop.index0 - 1] %}
+      <div class="w-16 text-xs text-slate-400 flex-shrink-0">
+        {% if prev.count > 0 %}
+          {{ (stage.count / prev.count * 100) | round | int }}% conv.
+        {% else %}—{% endif %}
+      </div>
+      {% else %}
+      <div class="w-16 flex-shrink-0"></div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+
+  <!-- Contacts by stage -->
+  {% for stage in stages %}
+  {% if stage.leads %}
+  <div class="card overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+      <span class="text-sm font-semibold text-slate-700">{{ stage.label }}</span>
+      <span class="badge {{ stage.color }} text-xs">{{ stage.count }}</span>
+    </div>
+    <ul class="divide-y divide-slate-50">
+      {% for lead in stage.leads %}
+      <li class="px-4 py-2.5 hover:bg-slate-50 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <a href="/leads/{{ lead.id }}" class="text-sm font-medium text-slate-800 hover:text-brand-600 truncate block">{{ lead.name }}</a>
+          {% if lead.company %}<span class="text-xs text-slate-400">{{ lead.company }}</span>{% endif %}
+        </div>
+        {% if lead.outreach_reconnect_date %}
+        <span class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 flex-shrink-0 whitespace-nowrap">
+          {{ lead.outreach_reconnect_date | date }}
+        </span>
+        {% endif %}
+      </li>
+      {% endfor %}
+      {% if stage.count > 10 %}
+      <li class="px-4 py-2 text-xs text-slate-400">
+        <a href="/leads?status={{ stage.status.value }}" class="hover:text-brand-600">+ {{ stage.count - 10 }} more →</a>
+      </li>
+      {% endif %}
+    </ul>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+</div>
+
+<!-- Outreach Reminders -->
+{% if reminders %}
+<div class="card overflow-hidden mt-6">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+    <span class="text-sm font-semibold text-slate-700">Outreach Reminders</span>
+    <span class="badge bg-amber-50 text-amber-700 border-amber-200 text-xs">{{ reminders | length }}</span>
+  </div>
+  <table class="crm crm-compact w-full">
+    <thead>
+      <tr>
+        <th>Contact</th>
+        <th>Reminder</th>
+        <th>Due</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reminders %}
+      {% set lead = lead_map.get(r.lead_id) %}
+      <tr class="{% if r.due_at and r.due_at < now %}bg-red-50{% endif %}">
+        <td>
+          {% if lead %}
+          <a href="/leads/{{ lead.id }}" class="text-sm font-medium text-brand-600 hover:underline">{{ lead.name }}</a>
+          {% if lead.company %}<span class="text-xs text-slate-400 ml-1">· {{ lead.company }}</span>{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="text-xs text-slate-600 max-w-xs truncate">{{ r.subject }}</td>
+        <td class="text-xs whitespace-nowrap {% if r.due_at and r.due_at < now %}text-red-600 font-medium{% else %}text-slate-500{% endif %}">
+          {{ r.due_at | date if r.due_at else '—' }}
+          {% if r.due_at and r.due_at < now %}<span class="ml-1 badge bg-red-100 text-red-600 border-red-200">Overdue</span>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/activities/{{ r.id }}/complete">
+            <button type="submit" class="text-xs text-slate-400 hover:text-green-600 transition-colors" title="Mark done">✓</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

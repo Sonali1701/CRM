@@ -235,6 +235,12 @@ def mail_inbox(
             .all()
         )
 
+    # Pre-fetch leads linked to graph messages to show their outreach notes
+    graph_lead_ids = {m.lead_id for m in graph_msgs if m.lead_id}
+    leads_map: dict[int, Lead] = {}
+    if graph_lead_ids:
+        leads_map = {l.id: l for l in db.query(Lead).filter(Lead.id.in_(graph_lead_ids)).all()}
+
     # 2) Activity-only emails (SMTP sends, or Graph sends not yet synced).
     # Only relevant for the Sent tab — inbox is Graph-only.
     activity_msgs: list[Activity] = []
@@ -251,6 +257,7 @@ def mail_inbox(
     # Unified items list
     items: list[dict] = []
     for m in graph_msgs:
+        lead_obj = leads_map.get(m.lead_id) if m.lead_id else None
         items.append({
             "subject": m.subject or "(No subject)",
             "from_label": m.from_email or "—",
@@ -261,6 +268,9 @@ def mail_inbox(
             "client_id": m.client_id,
             "deal_id": m.deal_id,
             "source": "Outlook",
+            "lead_outreach_notes": (lead_obj.notes or "")[:120] if lead_obj else "",
+            "lead_outreach_category": lead_obj.outreach_category if lead_obj else None,
+            "lead_outreach_summary": lead_obj.outreach_summary if lead_obj else None,
         })
     for a in activity_msgs:
         recipient_bits = []
@@ -272,6 +282,7 @@ def mail_inbox(
         from_label = a.created_by.full_name if a.created_by else "—"
         if a.created_by_id == user.id:
             from_label += " (you)"
+        lead_obj = a.lead
         items.append({
             "subject": a.subject or "(No subject)",
             "from_label": from_label,
@@ -282,6 +293,9 @@ def mail_inbox(
             "client_id": a.client_id,
             "deal_id": a.deal_id,
             "source": "SMTP",
+            "lead_outreach_notes": (lead_obj.notes or "")[:120] if lead_obj else "",
+            "lead_outreach_category": lead_obj.outreach_category if lead_obj else None,
+            "lead_outreach_summary": lead_obj.outreach_summary if lead_obj else None,
         })
 
     items.sort(

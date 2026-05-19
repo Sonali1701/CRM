@@ -28,14 +28,18 @@ _COLORS = {
     LeadStatus.DISQUALIFIED: "bg-red-50 text-red-700 border-red-200",
 }
 
-# SVG fill colors for the trapezoid funnel
+# SVG fill hex — dark-to-light blue gradient (navy → mid-blue → sky → teal)
 _FILL_HEX = {
-    LeadStatus.NEW: "#64748b",        # slate-500
-    LeadStatus.CONTACTED: "#3b82f6",  # blue-500
-    LeadStatus.QUALIFIED: "#6366f1",  # indigo-500
-    LeadStatus.CONVERTED: "#10b981",  # emerald-500
+    LeadStatus.NEW: "#0c2340",
+    LeadStatus.CONTACTED: "#1a56db",
+    LeadStatus.QUALIFIED: "#3f83f8",
+    LeadStatus.CONVERTED: "#0ea5e9",
     LeadStatus.DISQUALIFIED: "#ef4444",
 }
+
+# Fixed funnel widths (px out of 600) for each stage — always decreasing
+# so the shape looks like a proper inverted triangle regardless of data.
+_FUNNEL_WIDTHS = [556, 424, 292, 160]
 
 
 @router.get("/funnel")
@@ -58,16 +62,17 @@ def funnel_view(request: Request, user: User = Depends(require_user), db: Sessio
         count = len(bucket)
         pct_total = round(count / total * 100) if total else 0
         pct_bar = round(count / top_count * 100) if top_count else 0
-        # Funnel segment width in SVG units (560 wide), min 80px so empty stages still visible
-        funnel_px = max(80, round(pct_bar / 100 * 560))
+        idx = len(stages)
         stages.append({
             "status": status,
             "label": status.value.replace("_", " ").title(),
-            "leads": bucket[:10],
+            "leads": bucket[:8],
             "count": count,
             "pct_total": pct_total,
             "pct_bar": pct_bar,
-            "funnel_px": funnel_px,
+            # Fixed width for each funnel layer (visual shape is fixed, not data-driven)
+            "top_w": _FUNNEL_WIDTHS[idx],
+            "bot_w": _FUNNEL_WIDTHS[idx + 1] if idx + 1 < len(_FUNNEL_WIDTHS) else 60,
             "color": _COLORS[status],
             "fill": _FILL_HEX[status],
         })

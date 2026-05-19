@@ -2,200 +2,215 @@
 {% block title %}Sales Funnel – Radixsol CRM{% endblock %}
 {% block content %}
 
-<div class="flex items-center justify-between mb-6">
+<!-- Header -->
+<div class="flex items-center justify-between mb-8">
   <div>
     <h1 class="text-xl font-semibold text-slate-900">Sales Funnel</h1>
-    <p class="text-sm text-slate-500 mt-0.5">{{ total }} contact{% if total != 1 %}s{% endif %} total</p>
+    <p class="text-sm text-slate-500 mt-0.5">Contact pipeline · {{ total }} total</p>
   </div>
   <a href="/leads/new" class="btn btn-primary">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
     New Contact
   </a>
 </div>
 
-<!-- ── SVG Trapezoid Funnel ─────────────────────────────────── -->
-{% set SVG_W = 600 %}
-{% set SEG_H = 76 %}
-{% set GAP = 4 %}
-{% set N = stages | length %}
-{% set SVG_H = N * SEG_H + (N - 1) * GAP %}
+<!-- ── Funnel + Stage List ─────────────────────────────────── -->
+<div class="flex flex-col lg:flex-row gap-8 mb-10">
 
-<div class="card p-6 mb-8">
-  <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-6 text-center">Conversion Funnel</h2>
+  <!-- SVG Funnel -->
+  {% set SVG_W = 600 %}
+  {% set SEG_H = 82 %}
+  {% set GAP = 5 %}
+  {% set N = stages | length %}
+  {% set SVG_H = N * SEG_H + (N - 1) * GAP + 20 %}
 
-  <div class="flex gap-8 items-start">
+  <div class="flex-1 min-w-0 flex items-center justify-center">
+    <svg viewBox="0 0 {{ SVG_W }} {{ SVG_H }}"
+         class="w-full max-w-sm"
+         xmlns="http://www.w3.org/2000/svg">
 
-    <!-- Funnel SVG (left) -->
-    <div class="flex-1 min-w-0">
-      <svg viewBox="0 0 {{ SVG_W }} {{ SVG_H }}" class="w-full max-w-md mx-auto block" xmlns="http://www.w3.org/2000/svg">
-
-        {% for stage in stages %}
-        {% set y = loop.index0 * (SEG_H + GAP) %}
-
-        {# top edge width of this segment #}
-        {% set top_w = stage.funnel_px %}
-
-        {# bottom edge = next stage's top_w, or shrink 15% for last stage #}
-        {% if not loop.last %}
-          {% set next_stage = stages[loop.index0 + 1] %}
-          {% set bot_w = next_stage.funnel_px %}
-        {% else %}
-          {% set bot_w = [top_w - 60, 60] | max %}
-        {% endif %}
-
-        {% set top_l = (SVG_W - top_w) / 2 %}
-        {% set top_r = top_l + top_w %}
-        {% set bot_l = (SVG_W - bot_w) / 2 %}
-        {% set bot_r = bot_l + bot_w %}
-        {% set mid_y = y + SEG_H / 2 %}
-
-        <!-- Trapezoid segment -->
-        <polygon
-          points="{{ top_l | round(1) }},{{ y }} {{ top_r | round(1) }},{{ y }} {{ bot_r | round(1) }},{{ y + SEG_H }} {{ bot_l | round(1) }},{{ y + SEG_H }}"
-          fill="{{ stage.fill }}"
-          opacity="0.92"
-        />
-
-        <!-- Stage label -->
-        <text x="{{ SVG_W / 2 }}" y="{{ mid_y - 10 }}"
-              text-anchor="middle" dominant-baseline="middle"
-              font-size="13" font-weight="600" fill="white" font-family="system-ui,sans-serif">
-          {{ stage.label }}
-        </text>
-
-        <!-- Count + pct -->
-        <text x="{{ SVG_W / 2 }}" y="{{ mid_y + 14 }}"
-              text-anchor="middle" dominant-baseline="middle"
-              font-size="11" fill="rgba(255,255,255,0.85)" font-family="system-ui,sans-serif">
-          {{ stage.count }} contact{% if stage.count != 1 %}s{% endif %}
-          {% if stage.pct_total %}· {{ stage.pct_total }}%{% endif %}
-        </text>
-
-        {# Conversion arrow between stages #}
-        {% if not loop.last %}
-        {% set next_stage = stages[loop.index0 + 1] %}
-        {% set arrow_y = y + SEG_H + GAP / 2 %}
-        {% if stage.count > 0 %}
-          {% set conv_pct = (next_stage.count / stage.count * 100) | round | int %}
-          <text x="{{ SVG_W / 2 }}" y="{{ arrow_y }}"
-                text-anchor="middle" dominant-baseline="middle"
-                font-size="9" fill="#94a3b8" font-family="system-ui,sans-serif">
-            ▼ {{ conv_pct }}% converted
-          </text>
-        {% endif %}
-        {% endif %}
-
-        {% endfor %}
-
-      </svg>
-    </div>
-
-    <!-- Stage legend + stats (right) -->
-    <div class="w-56 flex-shrink-0 space-y-2 pt-1">
       {% for stage in stages %}
-      <a href="/leads?status={{ stage.status.value }}"
-         class="flex items-center gap-2.5 p-3 rounded-lg border hover:shadow-sm transition-shadow {{ stage.color }}">
-        <span class="w-3 h-3 rounded-sm flex-shrink-0" style="background:{{ stage.fill }}"></span>
-        <div class="min-w-0 flex-1">
-          <div class="text-xs font-semibold truncate">{{ stage.label }}</div>
-          <div class="text-xs opacity-70">{{ stage.count }} · {{ stage.pct_total }}%</div>
-        </div>
-        {% if not loop.first %}
-        {% set prev = stages[loop.index0 - 1] %}
-        {% if prev.count > 0 %}
-        <span class="text-xs font-medium opacity-80">
-          {{ (stage.count / prev.count * 100) | round | int }}%↓
-        </span>
-        {% endif %}
-        {% endif %}
-      </a>
+      {% set y = loop.index0 * (SEG_H + GAP) %}
+      {% set top_l = (SVG_W - stage.top_w) / 2 %}
+      {% set top_r = top_l + stage.top_w %}
+      {% set bot_l = (SVG_W - stage.bot_w) / 2 %}
+      {% set bot_r = bot_l + stage.bot_w %}
+      {% set mid_y = y + SEG_H / 2 %}
+
+      <!-- Trapezoid -->
+      <polygon
+        points="{{ top_l | round(1) }},{{ y }}
+                {{ top_r | round(1) }},{{ y }}
+                {{ bot_r | round(1) }},{{ y + SEG_H }}
+                {{ bot_l | round(1) }},{{ y + SEG_H }}"
+        fill="{{ stage.fill }}"
+      />
+
+      <!-- Stage name -->
+      <text x="{{ SVG_W / 2 }}" y="{{ mid_y - 9 }}"
+            text-anchor="middle" dominant-baseline="middle"
+            font-size="14" font-weight="700" fill="white"
+            font-family="system-ui,-apple-system,sans-serif"
+            letter-spacing="0.3">{{ stage.label | upper }}</text>
+
+      <!-- Count -->
+      <text x="{{ SVG_W / 2 }}" y="{{ mid_y + 13 }}"
+            text-anchor="middle" dominant-baseline="middle"
+            font-size="12" fill="rgba(255,255,255,0.80)"
+            font-family="system-ui,-apple-system,sans-serif">
+        {{ stage.count }} contact{% if stage.count != 1 %}s{% endif %}{% if stage.pct_total and not loop.first %} · {{ stage.pct_total }}%{% endif %}
+      </text>
+
+      <!-- Conversion rate between stages -->
+      {% if not loop.last %}
+      {% set next_s = stages[loop.index0 + 1] %}
+      {% set gap_y = y + SEG_H + GAP / 2 %}
+      <text x="{{ SVG_W / 2 }}" y="{{ gap_y }}"
+            text-anchor="middle" dominant-baseline="middle"
+            font-size="9" fill="#94a3b8"
+            font-family="system-ui,-apple-system,sans-serif">
+        {% if stage.count > 0 %}{{ (next_s.count / stage.count * 100) | round | int }}% converted{% endif %}
+      </text>
+      {% endif %}
+
       {% endfor %}
 
-      <!-- Disqualified separate -->
-      <a href="/leads?status=disqualified"
-         class="flex items-center gap-2.5 p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:shadow-sm transition-shadow mt-3">
-        <span class="w-3 h-3 rounded-sm flex-shrink-0 bg-red-400"></span>
-        <div class="min-w-0 flex-1">
-          <div class="text-xs font-semibold">Disqualified</div>
-          <div class="text-xs opacity-70">{{ disqualified | length }} contacts</div>
-        </div>
-      </a>
-    </div>
-
+    </svg>
   </div>
+
+  <!-- Stage breakdown table -->
+  <div class="lg:w-80 flex-shrink-0">
+    <div class="card overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100">
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Stage Breakdown</span>
+      </div>
+      <div class="divide-y divide-slate-50">
+        {% for stage in stages %}
+        {% set prev = stages[loop.index0 - 1] if not loop.first else none %}
+        <a href="/leads?status={{ stage.status.value }}"
+           class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors group">
+          <span class="w-2.5 h-2.5 rounded-sm flex-shrink-0" style="background:{{ stage.fill }}"></span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-slate-700 group-hover:text-brand-600">{{ stage.label }}</div>
+            {% if prev and prev.count > 0 %}
+            <div class="text-xs text-slate-400 mt-0.5">
+              {{ (stage.count / prev.count * 100) | round | int }}% from {{ prev.label | lower }}
+            </div>
+            {% endif %}
+          </div>
+          <div class="text-right flex-shrink-0">
+            <div class="text-sm font-semibold text-slate-800">{{ stage.count }}</div>
+            {% if total %}<div class="text-xs text-slate-400">{{ stage.pct_total }}%</div>{% endif %}
+          </div>
+        </a>
+        {% endfor %}
+
+        <!-- Disqualified -->
+        <a href="/leads?status=disqualified"
+           class="flex items-center gap-3 px-4 py-3 hover:bg-red-50 transition-colors group">
+          <span class="w-2.5 h-2.5 rounded-sm flex-shrink-0 bg-red-400"></span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-red-600 group-hover:text-red-700">Disqualified</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-semibold text-slate-800">{{ disqualified | length }}</div>
+            {% if total %}<div class="text-xs text-slate-400">{{ (disqualified | length / total * 100) | round | int }}%</div>{% endif %}
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<!-- ── Contacts by stage ──────────────────────────────────── -->
-<div class="grid lg:grid-cols-2 gap-6 mb-8">
+<!-- ── Contacts by Stage ──────────────────────────────────── -->
+{% set has_contacts = stages | selectattr('leads') | list %}
+{% if has_contacts %}
+<div class="mb-2 flex items-center gap-2">
+  <h2 class="text-sm font-semibold text-slate-700">Contacts by Stage</h2>
+</div>
+<div class="grid lg:grid-cols-4 gap-4 mb-10">
   {% for stage in stages %}
-  {% if stage.leads %}
   <div class="card overflow-hidden">
-    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-      <div class="flex items-center gap-2">
-        <span class="w-2.5 h-2.5 rounded-sm" style="background:{{ stage.fill }}"></span>
-        <span class="text-sm font-semibold text-slate-700">{{ stage.label }}</span>
+    <div class="px-3 py-2.5 border-b border-slate-100 flex items-center justify-between">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-sm" style="background:{{ stage.fill }}"></span>
+        <span class="text-xs font-semibold text-slate-600">{{ stage.label }}</span>
       </div>
-      <span class="badge {{ stage.color }} text-xs">{{ stage.count }}</span>
+      <span class="text-xs font-bold text-slate-700">{{ stage.count }}</span>
     </div>
+    {% if stage.leads %}
     <ul class="divide-y divide-slate-50">
       {% for lead in stage.leads %}
-      <li class="px-4 py-2.5 hover:bg-slate-50 flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <a href="/leads/{{ lead.id }}" class="text-sm font-medium text-slate-800 hover:text-brand-600 truncate block">{{ lead.name }}</a>
-          {% if lead.company %}<span class="text-xs text-slate-400">{{ lead.company }}</span>{% endif %}
-        </div>
+      <li class="px-3 py-2 hover:bg-slate-50">
+        <a href="/leads/{{ lead.id }}"
+           class="text-xs font-medium text-slate-700 hover:text-brand-600 truncate block">{{ lead.name }}</a>
+        {% if lead.company %}
+        <span class="text-xs text-slate-400 truncate block">{{ lead.company }}</span>
+        {% endif %}
         {% if lead.outreach_reconnect_date %}
-        <span class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 flex-shrink-0 whitespace-nowrap">
+        <span class="inline-block mt-0.5 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-1">
           {{ lead.outreach_reconnect_date | date }}
         </span>
         {% endif %}
       </li>
       {% endfor %}
-      {% if stage.count > 10 %}
-      <li class="px-4 py-2 text-xs text-slate-400">
-        <a href="/leads?status={{ stage.status.value }}" class="hover:text-brand-600">+ {{ stage.count - 10 }} more →</a>
+      {% if stage.count > 8 %}
+      <li class="px-3 py-2">
+        <a href="/leads?status={{ stage.status.value }}" class="text-xs text-brand-600 hover:underline">
+          + {{ stage.count - 8 }} more →
+        </a>
       </li>
       {% endif %}
     </ul>
+    {% else %}
+    <div class="px-3 py-6 text-center text-xs text-slate-300">No contacts</div>
+    {% endif %}
   </div>
-  {% endif %}
   {% endfor %}
 </div>
+{% endif %}
 
 <!-- ── Outreach Reminders ─────────────────────────────────── -->
 {% if reminders %}
+<div class="mb-2">
+  <h2 class="text-sm font-semibold text-slate-700">Outreach Reminders</h2>
+</div>
 <div class="card overflow-hidden">
-  <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-    <span class="text-sm font-semibold text-slate-700">Outreach Reminders</span>
-    <span class="badge bg-amber-50 text-amber-700 border-amber-200 text-xs">{{ reminders | length }}</span>
-  </div>
   <table class="crm crm-compact w-full">
     <thead>
       <tr>
         <th>Contact</th>
-        <th>Reminder</th>
-        <th>Due</th>
-        <th></th>
+        <th>Task</th>
+        <th>Due Date</th>
+        <th class="w-8"></th>
       </tr>
     </thead>
     <tbody>
       {% for r in reminders %}
       {% set lead = lead_map.get(r.lead_id) %}
-      <tr class="{% if r.due_at and r.due_at < now %}bg-red-50{% endif %}">
+      <tr class="{% if r.due_at and r.due_at < now %}bg-red-50 hover:bg-red-100{% endif %}">
         <td>
           {% if lead %}
-          <a href="/leads/{{ lead.id }}" class="text-sm font-medium text-brand-600 hover:underline">{{ lead.name }}</a>
-          {% if lead.company %}<span class="text-xs text-slate-400 ml-1">· {{ lead.company }}</span>{% endif %}
+          <a href="/leads/{{ lead.id }}" class="font-medium text-brand-600 hover:underline text-sm">{{ lead.name }}</a>
+          {% if lead.company %}<span class="text-xs text-slate-400 block">{{ lead.company }}</span>{% endif %}
           {% else %}—{% endif %}
         </td>
-        <td class="text-xs text-slate-600 max-w-xs truncate">{{ r.subject }}</td>
-        <td class="text-xs whitespace-nowrap {% if r.due_at and r.due_at < now %}text-red-600 font-medium{% else %}text-slate-500{% endif %}">
-          {{ r.due_at | date if r.due_at else '—' }}
-          {% if r.due_at and r.due_at < now %}<span class="ml-1 badge bg-red-100 text-red-600 border-red-200">Overdue</span>{% endif %}
+        <td class="text-xs text-slate-600 max-w-[200px] truncate">{{ r.subject }}</td>
+        <td class="text-xs whitespace-nowrap">
+          <span class="{% if r.due_at and r.due_at < now %}text-red-600 font-semibold{% else %}text-slate-500{% endif %}">
+            {{ r.due_at | date if r.due_at else '—' }}
+          </span>
+          {% if r.due_at and r.due_at < now %}
+          <span class="ml-1 badge bg-red-100 text-red-600 border-red-200 text-[10px]">Overdue</span>
+          {% endif %}
         </td>
-        <td>
+        <td class="text-center">
           <form method="post" action="/activities/{{ r.id }}/complete">
-            <button type="submit" class="text-xs text-slate-400 hover:text-green-600 transition-colors" title="Mark done">✓</button>
+            <input type="hidden" name="redirect_to" value="/funnel" />
+            <button type="submit" class="text-slate-300 hover:text-green-500 transition-colors text-base leading-none" title="Mark done">✓</button>
           </form>
         </td>
       </tr>

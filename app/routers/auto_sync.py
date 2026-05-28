@@ -216,9 +216,9 @@ def auto_sync_run_now(
 
     try:
         summary = run_sync(config, db)
-        msg = (f'Sync done — {summary.get("created", 0)} created, '
-               f'{summary.get("updated", 0)} updated, '
-               f'{summary.get("activities", 0)} activities.')
+        msg = (f"Sync done - {summary.get('created', 0)} created, "
+               f"{summary.get('updated', 0)} updated, "
+               f"{summary.get('activities', 0)} activities.")
     except Exception as e:
         msg = f"Sync failed: {e}"
     return flash(RedirectResponse("/auto-sync", status_code=303), msg)

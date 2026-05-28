@@ -13,12 +13,34 @@
 
   <div class="card p-5 mb-4 bg-indigo-50 border-indigo-200 text-sm text-indigo-800 space-y-3">
     <p class="font-semibold">Step 1 — Upload your Excel file to the cloud</p>
-    <div class="space-y-1.5 text-indigo-700">
-      <p><strong>Google Drive:</strong> Drive → New → File upload → share → "Anyone with the link" → copy link</p>
-      <p><strong>OneDrive:</strong> Upload file → right-click → Share → "Anyone with the link can view" → copy link</p>
-      <p><strong>Dropbox:</strong> Upload → Share → copy link (ends with ?dl=0)</p>
+    <div class="space-y-2 text-indigo-700 text-xs">
+      <div>
+        <p class="font-semibold">Google Drive:</p>
+        <ol class="list-decimal list-inside ml-1">
+          <li>Upload .xlsx file</li>
+          <li>Right-click file → Share</li>
+          <li>Change to "Anyone with the link can view"</li>
+          <li>Copy the link (should contain /file/d/...)</li>
+        </ol>
+      </div>
+      <div>
+        <p class="font-semibold">OneDrive:</p>
+        <ol class="list-decimal list-inside ml-1">
+          <li>Upload .xlsx file</li>
+          <li>Right-click → Share → "People you choose"</li>
+          <li>Change to "Anyone with the link can view"</li>
+          <li>Copy link</li>
+        </ol>
+      </div>
+      <div>
+        <p class="font-semibold">Dropbox:</p>
+        <ol class="list-decimal list-inside ml-1">
+          <li>Upload .xlsx file</li>
+          <li>Right-click → Share → Copy link</li>
+        </ol>
+      </div>
     </div>
-    <p class="text-indigo-600 text-xs">The file must be publicly readable. The CRM will fetch it on your chosen schedule and sync any changes into Contacts automatically.</p>
+    <p class="text-indigo-600 text-xs border-t border-indigo-300 pt-2">💡 The file must be publicly readable. The CRM will fetch it on your chosen schedule and sync any changes into Contacts automatically.</p>
   </div>
 
   <div class="card p-6">

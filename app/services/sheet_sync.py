@@ -22,7 +22,7 @@ def resolve_download_url(url: str) -> str:
     Convert cloud share URLs to direct download URLs.
 
     Supports:
-      - Google Drive file share links  → direct download
+      - Google Drive file share links  → direct download (with confirm skip)
       - Google Sheets share/edit links → xlsx export
       - Dropbox share links            → force-download variant
       - OneDrive share links           → embed→download transform
@@ -36,14 +36,15 @@ def resolve_download_url(url: str) -> str:
         return f"https://docs.google.com/spreadsheets/d/{m.group(1)}/export?format=xlsx"
 
     # Google Drive file: https://drive.google.com/file/d/{ID}/view...
+    # Use uc?export=download which bypasses the confirmation page
     m = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", url)
     if m:
-        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+        return f"https://drive.google.com/uc?export=download&confirm=t&id={m.group(1)}"
 
     # Google Drive open link: https://drive.google.com/open?id={ID}
     m = re.search(r"drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)", url)
     if m:
-        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+        return f"https://drive.google.com/uc?export=download&confirm=t&id={m.group(1)}"
 
     # Dropbox: change dl=0 → dl=1 (or add dl=1)
     if "dropbox.com" in url:
@@ -80,7 +81,10 @@ def run_sync(config: AutoSyncConfig, db) -> dict:
     try:
         raw = fetch_excel_bytes(config.url)
     except Exception as e:
-        config.last_error = f"Fetch failed: {e}"
+        error_str = str(e)
+        if "Content_Types" in error_str:
+            error_str += " — the link returned HTML, not Excel. Check the share link is correct."
+        config.last_error = f"Fetch failed: {error_str}"
         config.last_synced_at = datetime.now(timezone.utc)
         db.commit()
         return {}

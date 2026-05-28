@@ -73,9 +73,15 @@ async def auto_sync_setup_post(
     try:
         raw = fetch_excel_bytes(url)
     except Exception as e:
+        error_msg = str(e)
+        hint = ""
+        if "Content_Types" in error_msg:
+            hint = " (The link returned HTML instead of Excel. For Google Drive: right-click file → Share → Anyone with link can view → copy link. Make sure the link ends with /view, not just an ID.)"
+        elif "404" in error_msg:
+            hint = " (File not found. Check the link is correct and still shared.)"
         return templates.TemplateResponse(request, "auto_sync/setup_url.html", {
             "user": user,
-            "error": f"Could not fetch the file: {e}. Make sure the file is shared publicly.",
+            "error": f"Could not fetch the file: {e}.{hint}",
         })
 
     sheets = _parse_excel_all_sheets(raw)

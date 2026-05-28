@@ -8,6 +8,7 @@ from app.deps import require_user
 from app.flash import flash, get_flash
 from app.models import User, Lead, Client, Activity, EmailMessage
 from app.models.lead import LeadStatus
+from app.models.activity import ActivityType
 from app.models.sequence import SequenceEnrollment
 from app.templating import templates
 
@@ -201,9 +202,24 @@ def lead_detail(lead_id: int, request: Request, user: User = Depends(require_use
     lead = _get_lead(lead_id, user, db)
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
     clients = db.query(Client).order_by(Client.name).all()
+    # Get all activities for this lead, sorted by date descending
+    activities = db.query(Activity).filter(Activity.lead_id == lead_id).order_by(
+        Activity.completed_at.desc().nulls_last(),
+        Activity.due_at.desc().nulls_last(),
+        Activity.created_at.desc(),
+    ).all()
+    # Get next open task (if any)
+    from datetime import datetime, timezone
+    next_task = db.query(Activity).filter(
+        Activity.lead_id == lead_id,
+        Activity.type == ActivityType.TASK,
+        Activity.completed == False,  # noqa: E712
+        Activity.due_at > datetime.now(timezone.utc),
+    ).order_by(Activity.due_at).first()
     return templates.TemplateResponse(request, "leads/form.html", {
         "user": user, "flash": get_flash(request),
         "lead": lead, "reps": reps, "statuses": list(LeadStatus), "clients": clients,
+        "activities": activities, "next_task": next_task,
     })
 
 

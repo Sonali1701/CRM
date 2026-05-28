@@ -175,93 +175,29 @@
   <button @click="clearAll()" class="btn btn-ghost btn-sm text-slate-500">Clear</button>
 </div>
 
-<!-- Summary Stats -->
-{% if status_counts %}
-<div class="grid grid-cols-5 gap-3 mb-6">
-  <a href="/leads?status=" class="card p-4 text-center hover:bg-slate-50 cursor-pointer {% if not filter_status %}bg-brand-50 border-brand-200{% endif %}">
-    <p class="text-xs text-slate-500 uppercase tracking-wide">Total</p>
-    <p class="text-2xl font-bold text-slate-900 mt-1">{{ leads | length }}</p>
-  </a>
-  {% for st in statuses %}
-  <a href="/leads?status={{ st.value }}" class="card p-4 text-center hover:bg-slate-50 cursor-pointer {% if filter_status == st.value %}bg-brand-50 border-brand-200{% endif %}">
-    <p class="text-xs font-medium text-slate-600 uppercase tracking-wide">{{ st.value }}</p>
-    <p class="text-2xl font-bold mt-1 badge-{{ st.value }}">{{ status_counts.get(st.value, 0) }}</p>
-  </a>
-  {% endfor %}
-</div>
-{% endif %}
-
-<!-- Smart Leads Table -->
+<!-- Table -->
 <div class="card overflow-hidden">
   {% if leads %}
-  <table class="w-full">
+  <table class="crm crm-compact w-full">
     <thead>
-      <tr class="border-b border-slate-200 bg-slate-50">
-        <th class="w-8 px-4 py-3">
+      <tr>
+        <th class="w-8 px-3">
           <input type="checkbox" class="rounded border-slate-300"
             @change="$event.target.checked ? selectAll() : clearAll()" />
         </th>
-        <th class="text-left px-4 py-3 text-sm font-semibold text-slate-700">Contact</th>
-        <th class="text-left px-4 py-3 text-sm font-semibold text-slate-700">Status</th>
-        <th class="text-left px-4 py-3 text-sm font-semibold text-slate-700">Last Update</th>
-        <th class="text-left px-4 py-3 text-sm font-semibold text-slate-700">Next Follow-up</th>
-        <th class="text-left px-4 py-3 text-sm font-semibold text-slate-700">Owner</th>
-        <th class="text-right px-4 py-3 text-sm font-semibold text-slate-700">Actions</th>
+        <th class="w-[17%]">Name</th>
+        <th class="w-[11%]">Title</th>
+        <th class="w-[12%]">Company</th>
+        <th class="w-[8%]">Status</th>
+        <th class="w-[11%]">Owner</th>
+        <th class="w-[8%]">Added</th>
+        <th class="w-[26%]">Outreach Notes</th>
+        <th class="w-[7%]"></th>
       </tr>
     </thead>
-    <tbody id="contacts-tbody" class="divide-y divide-slate-100">
+    <tbody id="contacts-tbody">
       {% for lead in leads %}
-      <tr class="hover:bg-slate-50 cursor-pointer" onclick="window.location='/leads/{{ lead.id }}'">
-        <td class="px-4 py-3" onclick="event.stopPropagation();">
-          <input type="checkbox" class="rounded border-slate-300"
-            @change="toggle({id: {{ lead.id }}, first_name: '{{ lead.first_name }}', last_name: '{{ lead.last_name }}', name: '{{ lead.name }}', email: '{{ lead.email }}', company: '{{ lead.company }}', title: '{{ lead.job_title }}'})"
-            :checked="isSelected({{ lead.id }})" />
-        </td>
-        <!-- Contact Info -->
-        <td class="px-4 py-3">
-          <div class="min-w-0">
-            <p class="font-medium text-slate-900">{{ lead.name }}</p>
-            <p class="text-xs text-slate-500 truncate">
-              {% if lead.company %}<span class="mr-2">{{ lead.company }}</span>{% endif %}
-              {% if lead.email %}<span class="text-slate-400">{{ lead.email }}</span>{% endif %}
-            </p>
-          </div>
-        </td>
-        <!-- Status Badge -->
-        <td class="px-4 py-3">
-          <span class="inline-block badge badge-{{ lead.status.value }} text-xs">{{ lead.status.value | humanize }}</span>
-        </td>
-        <!-- Last Update -->
-        <td class="px-4 py-3">
-          {% if lead.last_activity %}
-          <div class="text-sm">
-            <p class="text-slate-700 truncate max-w-xs" title="{{ lead.last_activity.body }}">{{ lead.last_activity.body | truncate(50) }}</p>
-            <p class="text-xs text-slate-400 mt-0.5">{{ lead.last_activity.created_at.strftime('%b %d') }}</p>
-          </div>
-          {% else %}
-          <p class="text-xs text-slate-400">—</p>
-          {% endif %}
-        </td>
-        <!-- Next Follow-up -->
-        <td class="px-4 py-3">
-          {% if lead.next_task %}
-          <div class="text-sm">
-            <p class="font-medium text-amber-700">{{ lead.next_task.due_at.strftime('%b %d, %I:%M %p') }}</p>
-            <p class="text-xs text-slate-500 truncate max-w-xs" title="{{ lead.next_task.subject }}">{{ lead.next_task.subject }}</p>
-          </div>
-          {% else %}
-          <p class="text-xs text-slate-400">No follow-up scheduled</p>
-          {% endif %}
-        </td>
-        <!-- Owner -->
-        <td class="px-4 py-3 text-sm text-slate-700">
-          {% if lead.owner %}{{ lead.owner.full_name }}{% else %}<span class="text-slate-400">Unassigned</span>{% endif %}
-        </td>
-        <!-- Actions -->
-        <td class="px-4 py-3 text-right" onclick="event.stopPropagation();">
-          <a href="/leads/{{ lead.id }}" class="btn btn-ghost btn-sm text-slate-600 hover:text-brand-600">View →</a>
-        </td>
-      </tr>
+      {% include "leads/_row.html" %}
       {% endfor %}
     </tbody>
   </table>

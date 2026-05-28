@@ -74,6 +74,8 @@ def find_lead_duplicate(
 
 @router.get("")
 def leads_list(request: Request, status: str = "", search: str = "", user: User = Depends(require_user), db: Session = Depends(get_db)):
+    from datetime import datetime, timezone
+
     q = _leads_query(db, user)
     if status:
         q = q.filter(Lead.status == status)
@@ -84,6 +86,31 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
                 Lead.company.ilike(like), Lead.email.ilike(like))
         )
     leads = q.order_by(Lead.created_at.desc()).all()
+
+    # Enrich leads with follow-up and activity info
+    now = datetime.now(timezone.utc)
+    for lead in leads:
+        # Next open follow-up task
+        lead.next_task = db.query(Activity).filter(
+            Activity.lead_id == lead.id,
+            Activity.type == ActivityType.TASK,
+            Activity.completed == False,  # noqa: E712
+            Activity.due_at > now,
+        ).order_by(Activity.due_at).first()
+
+        # Last activity (most recent)
+        lead.last_activity = db.query(Activity).filter(
+            Activity.lead_id == lead.id,
+        ).order_by(
+            Activity.completed_at.desc().nulls_last(),
+            Activity.created_at.desc(),
+        ).first()
+
+    # Count by status
+    status_counts = {}
+    for s in LeadStatus:
+        status_counts[s.value] = _leads_query(db, user).filter(Lead.status == s).count()
+
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
     # Templates + sequences available to this user for the bulk-mail modal
     from app.models import EmailTemplate, EmailSequence
@@ -99,6 +126,7 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
         "user": user, "flash": get_flash(request),
         "leads": leads, "reps": reps,
         "statuses": list(LeadStatus), "filter_status": status, "search": search,
+        "status_counts": status_counts,
         "email_templates": email_templates, "sequences": sequences,
         "ai_enabled": is_ai_configured(),
     })

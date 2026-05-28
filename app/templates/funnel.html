@@ -24,7 +24,7 @@
   {% set SEG_H = 82 %}
   {% set GAP = 5 %}
   {% set N = stages | length %}
-  {% set SVG_H = N * SEG_H + (N - 1) * GAP + 20 %}
+  {% set SVG_H = N * SEG_H + (N - 1) * GAP %}
 
   <div class="flex-1 min-w-0 flex items-center justify-center">
     <svg viewBox="0 0 {{ SVG_W }} {{ SVG_H }}"
@@ -55,25 +55,13 @@
             font-family="system-ui,-apple-system,sans-serif"
             letter-spacing="0.3">{{ stage.label | upper }}</text>
 
-      <!-- Count -->
+      <!-- Count (pct and conversion rate are in the breakdown panel, not duplicated here) -->
       <text x="{{ SVG_W / 2 }}" y="{{ mid_y + 13 }}"
             text-anchor="middle" dominant-baseline="middle"
-            font-size="12" fill="rgba(255,255,255,0.80)"
+            font-size="12" fill="rgba(255,255,255,0.75)"
             font-family="system-ui,-apple-system,sans-serif">
-        {{ stage.count }} contact{% if stage.count != 1 %}s{% endif %}{% if stage.pct_total and not loop.first %} · {{ stage.pct_total }}%{% endif %}
+        {{ stage.count }} contact{% if stage.count != 1 %}s{% endif %}
       </text>
-
-      <!-- Conversion rate between stages -->
-      {% if not loop.last %}
-      {% set next_s = stages[loop.index0 + 1] %}
-      {% set gap_y = y + SEG_H + GAP / 2 %}
-      <text x="{{ SVG_W / 2 }}" y="{{ gap_y }}"
-            text-anchor="middle" dominant-baseline="middle"
-            font-size="9" fill="#94a3b8"
-            font-family="system-ui,-apple-system,sans-serif">
-        {% if stage.count > 0 %}{{ (next_s.count / stage.count * 100) | round | int }}% converted{% endif %}
-      </text>
-      {% endif %}
 
       {% endfor %}
 

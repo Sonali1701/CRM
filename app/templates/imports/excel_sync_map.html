@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Map Columns – Excel Sync – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/import/excel-sync" class="text-slate-400 hover:text-slate-600 text-sm">← Re-upload</a>
+    <h1 class="text-xl font-semibold">Map Columns — Excel Sync</h1>
+  </div>
+
+  <div class="card p-3 mb-4 bg-amber-50 border-amber-200 text-sm text-amber-800">
+    Syncing <strong>{{ total_rows }} rows</strong> from
+    {% for s in selected_sheets %}<strong>{{ s }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
+    Existing contacts matched by email will be <strong>updated</strong>. New emails will be created.
+  </div>
+
+  <form method="post" action="/import/excel-sync/confirm/{{ sid }}" class="space-y-5">
+    <div class="card overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-200">
+            <th class="text-left px-4 py-2 text-xs uppercase tracking-wide text-slate-500 w-1/4">CRM Field</th>
+            <th class="text-left px-4 py-2 text-xs uppercase tracking-wide text-slate-500 w-1/3">Your Column</th>
+            <th class="text-left px-4 py-2 text-xs uppercase tracking-wide text-slate-500">Sample (first 3 rows)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Standard contact fields -->
+          <tr><td colspan="3" class="px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-50 uppercase tracking-wide">Contact Fields</td></tr>
+          {% for field in fields if not field.get('sync_only') %}
+          {% set mapped_col = auto_map.get(field.key, '') %}
+          <tr class="border-b border-slate-100">
+            <td class="px-4 py-3 font-medium align-top">
+              {{ field.label }}{% if field.required %}<span class="text-red-500">*</span>{% endif %}
+            </td>
+            <td class="px-4 py-3 align-top">
+              <select name="map_{{ field.key }}"
+                class="select text-sm {% if mapped_col %}border-green-400 bg-green-50{% endif %}"
+                onchange="updatePreview(this, '{{ field.key }}')">
+                <option value="">— skip —</option>
+                {% for h in file_headers %}
+                <option value="{{ h }}" {% if h == mapped_col %}selected{% endif %}>{{ h }}</option>
+                {% endfor %}
+              </select>
+              {% if mapped_col %}<span class="text-xs text-green-600 ml-1">auto-matched</span>{% endif %}
+            </td>
+            <td class="px-4 py-3 align-top text-xs" id="preview-{{ field.key }}">
+              {% if mapped_col and preview %}
+                {% for row in preview %}
+                <div class="text-slate-700 truncate max-w-xs">{{ row.get(mapped_col, '') or '—' }}</div>
+                {% endfor %}
+              {% else %}
+              <span class="text-slate-400">— skipped —</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+
+          <!-- Sync-specific fields -->
+          <tr><td colspan="3" class="px-4 py-2 text-xs font-semibold text-indigo-500 bg-indigo-50 uppercase tracking-wide">Sync Fields (updates &amp; follow-ups)</td></tr>
+          {% for field in fields if field.get('sync_only') %}
+          {% set mapped_col = auto_map.get(field.key, '') %}
+          <tr class="border-b border-slate-100 bg-indigo-50/30">
+            <td class="px-4 py-3 font-medium align-top text-indigo-700">
+              {{ field.label }}
+              {% if field.key == 'status' %}
+              <div class="text-xs text-slate-400 font-normal mt-0.5">new / contacted / qualified / converted / disqualified</div>
+              {% elif field.key == 'follow_up_notes' %}
+              <div class="text-xs text-slate-400 font-normal mt-0.5">Saved as a Note activity on the contact</div>
+              {% elif field.key == 'follow_up_date' %}
+              <div class="text-xs text-slate-400 font-normal mt-0.5">Creates a Task reminder (future dates only)</div>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 align-top">
+              <select name="map_{{ field.key }}"
+                class="select text-sm {% if mapped_col %}border-indigo-400 bg-indigo-50{% endif %}"
+                onchange="updatePreview(this, '{{ field.key }}')">
+                <option value="">— skip —</option>
+                {% for h in file_headers %}
+                <option value="{{ h }}" {% if h == mapped_col %}selected{% endif %}>{{ h }}</option>
+                {% endfor %}
+              </select>
+              {% if mapped_col %}<span class="text-xs text-indigo-500 ml-1">auto-matched</span>{% endif %}
+            </td>
+            <td class="px-4 py-3 align-top text-xs" id="preview-{{ field.key }}">
+              {% if mapped_col and preview %}
+                {% for row in preview %}
+                <div class="text-slate-700 truncate max-w-xs">{{ row.get(mapped_col, '') or '—' }}</div>
+                {% endfor %}
+              {% else %}
+              <span class="text-slate-400">— skipped —</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Raw preview -->
+    {% if preview %}
+    <div class="card p-4">
+      <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Raw data preview — first {{ preview | length }} rows</p>
+      <div class="overflow-x-auto">
+        <table class="crm text-xs">
+          <thead><tr>{% for h in file_headers %}<th class="whitespace-nowrap">{{ h }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for row in preview %}
+            <tr>{% for h in file_headers %}<td class="whitespace-nowrap">{{ row.get(h, '') }}</td>{% endfor %}</tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-3">
+      <button type="submit" class="btn btn-primary">Sync {{ total_rows }} rows →</button>
+      <a href="/import/excel-sync" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+const previewRows = {{ preview | tojson }};
+function updatePreview(select, fieldKey) {
+  const col = select.value;
+  const cell = document.getElementById('preview-' + fieldKey);
+  if (!cell) return;
+  cell.innerHTML = '';
+  if (!col) { cell.innerHTML = '<span class="text-slate-400">— skipped —</span>'; return; }
+  for (const row of previewRows) {
+    const div = document.createElement('div');
+    div.className = 'text-slate-700 truncate max-w-xs';
+    div.textContent = row[col] || '—';
+    cell.appendChild(div);
+  }
+}
+</script>
+{% endblock %}

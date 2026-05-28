@@ -188,6 +188,10 @@ def lead_create(
     db.flush()
     from app.services.outreach_reminder import schedule_outreach_reminder
     schedule_outreach_reminder(db, lead, user.id)
+    if lead.owner_id:
+        from app.services.notify import notify_assignment
+        notify_assignment(db, assignee_id=lead.owner_id, assigned_by_id=user.id,
+                          entity_type="contact", entity_name=lead.name, link=f"/leads/{lead.id}")
     db.commit()
     return flash(RedirectResponse("/leads", 303), "Contact created.")
 
@@ -240,7 +244,13 @@ def lead_update(
     lead.notes = new_notes
     lead.status = LeadStatus(status)
     if user.is_manager:
-        lead.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
+        prev_owner = lead.owner_id
+        new_owner = int(owner_id) if owner_id.strip().isdigit() else None
+        lead.owner_id = new_owner
+        if new_owner and new_owner != prev_owner:
+            from app.services.notify import notify_assignment
+            notify_assignment(db, assignee_id=new_owner, assigned_by_id=user.id,
+                              entity_type="contact", entity_name=lead.name, link=f"/leads/{lead.id}")
     from app.services.outreach_reminder import schedule_outreach_reminder
     schedule_outreach_reminder(db, lead, user.id)
     db.commit()
@@ -280,7 +290,13 @@ async def lead_assign(
         from fastapi import HTTPException
         raise HTTPException(403)
     lead = _get_lead_any(lead_id, db)
-    lead.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
+    prev_owner = lead.owner_id
+    new_owner = int(owner_id) if owner_id.strip().isdigit() else None
+    lead.owner_id = new_owner
+    if new_owner and new_owner != prev_owner:
+        from app.services.notify import notify_assignment
+        notify_assignment(db, assignee_id=new_owner, assigned_by_id=user.id,
+                          entity_type="contact", entity_name=lead.name, link=f"/leads/{lead.id}")
     db.commit()
     reps = db.query(User).filter(User.is_active == True).all()
     return templates.TemplateResponse(request, "leads/_row.html", {

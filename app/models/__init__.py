@@ -1,4 +1,5 @@
 from app.models.user import User, UserRole
+from app.models.notification import Notification
 from app.models.lead import Lead, LeadStatus
 from app.models.client import Client, Contact, ClientType
 from app.models.deal import Deal, DealStage
@@ -12,9 +13,11 @@ from app.models.sales_planning import (
     DealQualification, AccountPlan, ClosePlan, ClosePlanStep, ClosePlanStepStatus,
     MEDDIC_DIMENSIONS,
 )
+from app.models.auto_sync import AutoSyncConfig
 
 __all__ = [
     "User",
+    "Notification",
     "UserRole",
     "Lead",
     "LeadStatus",
@@ -39,4 +42,5 @@ __all__ = [
     "ClosePlanStep",
     "ClosePlanStepStatus",
     "MEDDIC_DIMENSIONS",
+    "AutoSyncConfig",
 ]

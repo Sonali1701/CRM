@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import require_user
 from app.flash import get_flash, flash
-from app.models import User, Lead, Client
+from app.models import User, Lead, Client, Activity
+from app.models.activity import ActivityType
 from app.models.client import ClientType
 from app.models.lead import LeadStatus
 from app.templating import templates
@@ -90,14 +91,17 @@ _LEAD_ALIASES: dict[str, list[str]] = {
     "company":     ["company", "company name", "organization", "organisation",
                     "account", "account name", "firm", "employer"],
     "email":       ["email", "email address", "e-mail", "mail", "email id"],
-    "mobile":      ["mobile", "mobile number", "cell", "cell phone", "cellphone"],
-    "phone":       ["phone", "phone number", "telephone", "contact number", "ph", "office phone"],
+    "mobile":      ["mobile", "mobile number", "cell", "cell phone", "cellphone",
+                    "contact 1", "contact1", "mobile no", "mob"],
+    "phone":       ["phone", "phone number", "telephone", "contact number", "ph", "office phone",
+                    "contact 2", "contact2", "tel", "landline"],
     "linkedin_url":["linkedin", "linkedin url", "linkedin profile", "linkedin link"],
     "city":        ["city", "town"],
     "state":       ["state", "province", "region"],
     "country":     ["country", "nation"],
     "source":      ["source", "lead source", "channel", "origin", "how did you hear"],
-    "notes":       ["notes", "note", "comments", "comment", "description", "remarks"],
+    "notes":       ["notes", "note", "description", "remarks",
+                    "date of outreach", "outreach date", "first contact date"],
 }
 
 _CLIENT_ALIASES: dict[str, list[str]] = {
@@ -506,3 +510,393 @@ def _import_clients(rows: list[dict], mapping: dict, user: User, db: Session) ->
             ).update({"client_id": new_id}, synchronize_session=False)
     db.commit()
     return {"imported": imported, "skipped": skipped}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EXCEL SYNC — multi-sheet upsert with follow-up activities
+# ══════════════════════════════════════════════════════════════════════════════
+
+SYNC_EXTRA_FIELDS = [
+    {"key": "status",          "label": "Status",             "required": False, "sync_only": True},
+    {"key": "follow_up_notes", "label": "Follow-up / Update", "required": False, "sync_only": True},
+    {"key": "follow_up_date",  "label": "Follow-up Date",     "required": False, "sync_only": True},
+]
+SYNC_LEAD_FIELDS = LEAD_FIELDS + SYNC_EXTRA_FIELDS
+
+_SYNC_ALIASES: dict[str, list[str]] = {
+    **_LEAD_ALIASES,
+    # override notes to exclude "comments" so it routes to follow_up_notes instead
+    "notes": ["notes", "note", "description", "remarks",
+              "date of outreach", "outreach date", "first contact date"],
+    "status": ["status", "lead status", "stage", "pipeline stage", "disposition"],
+    "follow_up_notes": [
+        "follow up", "follow-up", "followup", "update", "updates", "last update",
+        "follow up notes", "followup notes", "activity", "last contact",
+        "outreach update", "progress",
+        "comments", "comment",  # Charmi sheet: Comments column
+    ],
+    "follow_up_date": [
+        "follow up date", "follow-up date", "followup date", "next contact",
+        "next follow up", "next followup", "due date", "next action date",
+        "callback date", "reminder date",
+        "fu1", "fu 1", "fu-1", "follow up 1", "followup1",  # Charmi sheet: FU1 column
+    ],
+}
+
+_STATUS_MAP: dict[str, LeadStatus] = {
+    "new": LeadStatus.NEW,
+    "contacted": LeadStatus.CONTACTED,
+    "reached out": LeadStatus.CONTACTED,
+    "in progress": LeadStatus.CONTACTED,
+    "follow up": LeadStatus.CONTACTED,
+    "follow-up": LeadStatus.CONTACTED,
+    "interested": LeadStatus.QUALIFIED,
+    "qualified": LeadStatus.QUALIFIED,
+    "hot": LeadStatus.QUALIFIED,
+    "disqualified": LeadStatus.DISQUALIFIED,
+    "not interested": LeadStatus.DISQUALIFIED,
+    "rejected": LeadStatus.DISQUALIFIED,
+    "lost": LeadStatus.DISQUALIFIED,
+    "converted": LeadStatus.CONVERTED,
+    "won": LeadStatus.CONVERTED,
+    "closed won": LeadStatus.CONVERTED,
+}
+
+
+def _parse_excel_all_sheets(raw: bytes) -> "dict[str, tuple[list[str], list[dict]]] | str":
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+    except Exception as e:
+        return f"Could not read Excel file: {e}"
+    result: dict[str, tuple[list, list]] = {}
+    for name in wb.sheetnames:
+        ws = wb[name]
+        all_rows = list(ws.iter_rows(values_only=True))
+        if not all_rows:
+            continue
+        raw_headers = [str(c).strip() if c is not None else "" for c in all_rows[0]]
+        valid_idx = [i for i, h in enumerate(raw_headers) if h]
+        headers = [raw_headers[i] for i in valid_idx]
+        if not headers:
+            continue
+        data_rows = []
+        for row in all_rows[1:]:
+            vals_full = [str(c).strip() if c is not None else "" for c in row]
+            vals = [vals_full[i] if i < len(vals_full) else "" for i in valid_idx]
+            if any(vals):
+                data_rows.append(dict(zip(headers, vals)))
+        if data_rows:
+            result[name] = (headers, data_rows)
+    wb.close()
+    return result if result else "No worksheets with data were found."
+
+
+def _parse_sync_date(value: str) -> "datetime | None":
+    if not value:
+        return None
+    v = value.strip()
+    try:
+        serial = float(v)
+        if 1000 < serial < 100000:
+            from openpyxl.utils.datetime import from_excel
+            d = from_excel(serial)
+            if d:
+                return datetime(d.year, d.month, d.day, 9, 0, tzinfo=timezone.utc)
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y",
+                "%d-%m-%Y", "%m-%d-%Y", "%d %b %Y", "%b %d, %Y", "%B %d, %Y"):
+        try:
+            dt = datetime.strptime(v, fmt)
+            return datetime(dt.year, dt.month, dt.day, 9, 0, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    from app.services.outreach_reminder import _extract_date_from_notes
+    d = _extract_date_from_notes(v)
+    if d:
+        return datetime(d.year, d.month, d.day, 9, 0, tzinfo=timezone.utc)
+    return None
+
+
+def _note_exists(db: Session, lead_id: int, body: str) -> bool:
+    """True if a NOTE activity with this exact body already exists for the lead."""
+    return db.query(Activity).filter(
+        Activity.lead_id == lead_id,
+        Activity.type == ActivityType.NOTE,
+        Activity.body == body,
+    ).first() is not None
+
+
+def _task_exists_for_date(db: Session, lead_id: int, due: "datetime") -> bool:
+    """True if an open TASK on the same calendar day already exists for the lead."""
+    from sqlalchemy import func
+    return db.query(Activity).filter(
+        Activity.lead_id == lead_id,
+        Activity.type == ActivityType.TASK,
+        Activity.completed == False,  # noqa: E712
+        func.date(Activity.due_at) == due.date(),
+    ).first() is not None
+
+
+def _sync_leads_from_excel(rows: list[dict], mapping: dict, user: User, db: Session) -> dict:
+    created, updated, activities_added, skipped = [], [], [], []
+    now = datetime.now(timezone.utc)
+
+    existing_by_email: dict[str, Any] = {
+        lead.email.lower(): lead
+        for lead in db.query(Lead).filter(Lead.email.isnot(None)).all()
+    }
+    client_map = {c.name.lower(): c.id for c in db.query(Client).all()}
+
+    # scalar fields that can be overwritten if the sheet has a non-empty value
+    _UPDATABLE = [
+        ("first_name",   100),
+        ("last_name",    100),
+        ("job_title",    255),
+        ("company",      255),
+        ("mobile",        50),
+        ("phone",         50),
+        ("linkedin_url", 500),
+        ("city",         100),
+        ("state",        100),
+        ("country",      100),
+        ("source",       100),
+    ]
+
+    for i, row in enumerate(rows, start=2):
+        first_name = _trunc(_get_val(row, mapping.get("first_name", "")), 100)
+        if not first_name:
+            skipped.append({"row": i, "reason": "First name is empty"})
+            continue
+
+        email_val = _trunc(_get_val(row, mapping.get("email", "")), 255)
+        follow_up_notes = _get_val(row, mapping.get("follow_up_notes", ""))
+        follow_up_date_str = _get_val(row, mapping.get("follow_up_date", ""))
+        new_status = _STATUS_MAP.get(_get_val(row, mapping.get("status", "")).lower().strip())
+        existing = existing_by_email.get(email_val.lower()) if email_val else None
+
+        if existing:
+            # Update all mapped scalar fields if the sheet has a non-empty value
+            for field, maxlen in _UPDATABLE:
+                val = _trunc(_get_val(row, mapping.get(field, "")), maxlen)
+                if val:
+                    setattr(existing, field, val)
+                    # keep client_id in sync when company changes
+                    if field == "company":
+                        existing.client_id = client_map.get(val.lower())
+
+            if new_status:
+                existing.status = new_status
+
+            raw_note = _get_val(row, mapping.get("notes", ""))
+            if raw_note and raw_note not in (existing.notes or ""):
+                existing.notes = ((existing.notes + "\n\n") if existing.notes else "") + raw_note
+                existing.outreach_notes_hash = None
+
+            updated.append({"name": existing.name, "id": existing.id})
+
+            # NOTE activity — skip if identical body already logged
+            if follow_up_notes and not _note_exists(db, existing.id, follow_up_notes):
+                db.add(Activity(
+                    type=ActivityType.NOTE,
+                    subject=follow_up_notes[:120],
+                    body=follow_up_notes,
+                    lead_id=existing.id,
+                    client_id=existing.client_id,
+                    created_by_id=user.id,
+                    completed=True,
+                    completed_at=now,
+                ))
+                activities_added.append({"name": existing.name, "kind": "note"})
+
+            # TASK reminder — skip if an open task already exists on that date
+            if follow_up_date_str:
+                due = _parse_sync_date(follow_up_date_str)
+                if due and due > now and not _task_exists_for_date(db, existing.id, due):
+                    db.add(Activity(
+                        type=ActivityType.TASK,
+                        subject=f"Follow up: {existing.name}",
+                        body=follow_up_notes or "Follow-up from Excel sync",
+                        lead_id=existing.id,
+                        client_id=existing.client_id,
+                        created_by_id=user.id,
+                        due_at=due,
+                        completed=False,
+                    ))
+                    activities_added.append({"name": existing.name, "kind": "task"})
+
+        else:
+            company_val = _trunc(_get_val(row, mapping.get("company", "")), 255)
+            client_id = client_map.get(company_val.lower()) if company_val else None
+            notes_val = _get_val(row, mapping.get("notes", "")) or None
+            if follow_up_notes:
+                notes_val = ((notes_val + "\n\n") if notes_val else "") + follow_up_notes
+            lead = Lead(
+                first_name=first_name,
+                last_name=_trunc(_get_val(row, mapping.get("last_name", "")), 100),
+                job_title=_trunc(_get_val(row, mapping.get("job_title", "")), 255),
+                company=company_val,
+                client_id=client_id,
+                email=email_val,
+                mobile=_trunc(_get_val(row, mapping.get("mobile", "")), 50),
+                phone=_trunc(_get_val(row, mapping.get("phone", "")), 50),
+                linkedin_url=_trunc(_get_val(row, mapping.get("linkedin_url", "")), 500),
+                city=_trunc(_get_val(row, mapping.get("city", "")), 100),
+                state=_trunc(_get_val(row, mapping.get("state", "")), 100),
+                country=_trunc(_get_val(row, mapping.get("country", "")), 100),
+                source=_trunc(_get_val(row, mapping.get("source", "")), 100),
+                notes=notes_val,
+                status=new_status or LeadStatus.NEW,
+                owner_id=user.id,
+            )
+            db.add(lead)
+            db.flush()
+            if email_val:
+                existing_by_email[email_val.lower()] = lead
+            if follow_up_date_str:
+                due = _parse_sync_date(follow_up_date_str)
+                if due and due > now:
+                    db.add(Activity(
+                        type=ActivityType.TASK,
+                        subject=f"Follow up: {lead.name}",
+                        body=follow_up_notes or "Follow-up from Excel sync",
+                        lead_id=lead.id,
+                        client_id=lead.client_id,
+                        created_by_id=user.id,
+                        due_at=due,
+                        completed=False,
+                    ))
+                    activities_added.append({"name": lead.name, "kind": "task"})
+            created.append({"name": lead.name, "id": lead.id})
+
+    db.commit()
+    return {"created": created, "updated": updated, "activities": activities_added, "skipped": skipped}
+
+
+@router.get("/excel-sync")
+def excel_sync_page(request: Request, user: User = Depends(require_user)):
+    return templates.TemplateResponse(request, "imports/excel_sync_upload.html", {
+        "user": user, "flash": get_flash(request),
+    })
+
+
+@router.post("/excel-sync")
+async def excel_sync_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(require_user),
+):
+    raw = await file.read()
+    if len(raw) > MAX_BYTES:
+        return templates.TemplateResponse(request, "imports/excel_sync_upload.html", {
+            "user": user, "error": "File too large (max 5 MB).",
+        }, status_code=400)
+    fname = (file.filename or "").lower()
+    if not (fname.endswith(".xlsx") or fname.endswith(".xls")):
+        return templates.TemplateResponse(request, "imports/excel_sync_upload.html", {
+            "user": user, "error": "Only .xlsx / .xls files are supported for Excel Sync.",
+        }, status_code=400)
+    result = _parse_excel_all_sheets(raw)
+    if isinstance(result, str):
+        return templates.TemplateResponse(request, "imports/excel_sync_upload.html", {
+            "user": user, "error": result,
+        }, status_code=400)
+    all_sheets_serial = {
+        name: {"headers": headers, "rows": rows, "count": len(rows)}
+        for name, (headers, rows) in result.items()
+    }
+    sid = str(uuid.uuid4())
+    _sessions[sid] = {
+        "entity": "excel_sync",
+        "all_sheets": all_sheets_serial,
+        "expires": datetime.now(timezone.utc) + _SESSION_TTL,
+    }
+    _evict_old_sessions()
+    return RedirectResponse(f"/import/excel-sync/sheets/{sid}", status_code=303)
+
+
+@router.get("/excel-sync/sheets/{sid}")
+def excel_sync_sheets(sid: str, request: Request, user: User = Depends(require_user)):
+    session = _get_session(sid)
+    if not session:
+        return flash(RedirectResponse("/import/excel-sync", 303), "Session expired.", "error")
+    return templates.TemplateResponse(request, "imports/excel_sync_sheets.html", {
+        "user": user, "sid": sid,
+        "sheets": [
+            {"name": name, "count": info["count"], "headers": info["headers"][:6]}
+            for name, info in session["all_sheets"].items()
+        ],
+    })
+
+
+@router.post("/excel-sync/sheets/{sid}")
+async def excel_sync_sheets_post(sid: str, request: Request, user: User = Depends(require_user)):
+    session = _get_session(sid)
+    if not session:
+        return flash(RedirectResponse("/import/excel-sync", 303), "Session expired.", "error")
+    form = await request.form()
+    selected = form.getlist("sheets")
+    if not selected:
+        return templates.TemplateResponse(request, "imports/excel_sync_sheets.html", {
+            "user": user, "sid": sid,
+            "sheets": [
+                {"name": n, "count": i["count"], "headers": i["headers"][:6]}
+                for n, i in session["all_sheets"].items()
+            ],
+            "error": "Select at least one worksheet.",
+        })
+    all_sheets = session["all_sheets"]
+    merged_rows: list[dict] = []
+    seen_headers: list[str] = []
+    for name in selected:
+        if name not in all_sheets:
+            continue
+        info = all_sheets[name]
+        for h in info["headers"]:
+            if h not in seen_headers:
+                seen_headers.append(h)
+        for row in info["rows"]:
+            row["__sheet__"] = name
+            merged_rows.append(row)
+    session["selected"] = selected
+    session["headers"] = seen_headers
+    session["rows"] = merged_rows
+    return RedirectResponse(f"/import/excel-sync/map/{sid}", status_code=303)
+
+
+@router.get("/excel-sync/map/{sid}")
+def excel_sync_map(sid: str, request: Request, user: User = Depends(require_user)):
+    session = _get_session(sid)
+    if not session:
+        return flash(RedirectResponse("/import/excel-sync", 303), "Session expired.", "error")
+    auto = _auto_map(session["headers"], _SYNC_ALIASES)
+    return templates.TemplateResponse(request, "imports/excel_sync_map.html", {
+        "user": user, "sid": sid,
+        "fields": SYNC_LEAD_FIELDS,
+        "file_headers": session["headers"],
+        "auto_map": auto,
+        "preview": session["rows"][:3],
+        "total_rows": len(session["rows"]),
+        "selected_sheets": session.get("selected", []),
+    })
+
+
+@router.post("/excel-sync/confirm/{sid}")
+async def excel_sync_confirm(
+    sid: str, request: Request,
+    user: User = Depends(require_user), db: Session = Depends(get_db),
+):
+    session = _get_session(sid)
+    if not session:
+        return flash(RedirectResponse("/import/excel-sync", 303), "Session expired.", "error")
+    form = await request.form()
+    mapping = {f["key"]: form.get(f"map_{f['key']}", "") for f in SYNC_LEAD_FIELDS}
+    results = _sync_leads_from_excel(session["rows"], mapping, user, db)
+    del _sessions[sid]
+    return templates.TemplateResponse(request, "imports/excel_sync_results.html", {
+        "user": user,
+        "created": results["created"],
+        "updated": results["updated"],
+        "activities": results["activities"],
+        "skipped": results["skipped"],
+    })

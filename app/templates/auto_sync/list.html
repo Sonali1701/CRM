@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Auto-Sync – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+  <div class="mb-5 flex items-center justify-between">
+    <h1 class="text-xl font-semibold">Auto-Sync</h1>
+    <a href="/auto-sync/setup" class="btn btn-primary text-sm">+ New Auto-Sync</a>
+  </div>
+
+  {% if flash %}
+  <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">{{ flash.message }}</div>
+  {% endif %}
+
+  <div class="card p-4 mb-5 bg-blue-50 border-blue-200 text-sm text-blue-800 space-y-1">
+    <p class="font-semibold">How it works</p>
+    <p>Upload your Excel file to <strong>Google Drive</strong>, <strong>Dropbox</strong>, or <strong>OneDrive</strong>, share it with "Anyone with the link can view", paste the link here. The CRM fetches and re-syncs automatically on your chosen schedule.</p>
+  </div>
+
+  {% if not configs %}
+  <div class="card p-10 text-center text-slate-400">
+    <p class="text-lg mb-2">No auto-syncs configured yet.</p>
+    <a href="/auto-sync/setup" class="btn btn-primary mt-2">Set up your first sync</a>
+  </div>
+  {% else %}
+  <div class="space-y-3">
+    {% for cfg in configs %}
+    {% set res = cfg.last_result_dict %}
+    <div class="card p-4">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-semibold text-slate-800">{{ cfg.name }}</span>
+            {% if cfg.enabled %}
+            <span class="badge bg-green-50 text-green-700 border-green-200 text-xs">Active</span>
+            {% else %}
+            <span class="badge bg-slate-100 text-slate-500 text-xs">Paused</span>
+            {% endif %}
+          </div>
+          <p class="text-xs text-slate-400 truncate mb-1">{{ cfg.url }}</p>
+          <div class="flex flex-wrap gap-3 text-xs text-slate-500">
+            <span>Sheet: <strong class="text-slate-700">{{ cfg.sheet_name or "auto" }}</strong></span>
+            <span>Every <strong class="text-slate-700">{{ cfg.sync_interval_hours }}h</strong></span>
+            {% if cfg.last_synced_at %}
+            <span>Last sync: <strong class="text-slate-700">{{ cfg.last_synced_at.strftime('%d %b %H:%M') }}</strong></span>
+            {% else %}
+            <span class="text-amber-500">Never synced yet</span>
+            {% endif %}
+          </div>
+          {% if cfg.last_error %}
+          <p class="text-xs text-red-600 mt-1">⚠ {{ cfg.last_error }}</p>
+          {% elif res %}
+          <p class="text-xs text-slate-500 mt-1">
+            Last: {{ res.get('created', 0) }} created · {{ res.get('updated', 0) }} updated · {{ res.get('activities', 0) }} activities · {{ res.get('skipped', 0) }} skipped
+          </p>
+          {% endif %}
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <form method="post" action="/auto-sync/{{ cfg.id }}/run">
+            <button class="btn btn-secondary text-xs py-1.5 px-3">Run now</button>
+          </form>
+          <form method="post" action="/auto-sync/{{ cfg.id }}/toggle">
+            <button class="btn btn-secondary text-xs py-1.5 px-3">
+              {{ 'Pause' if cfg.enabled else 'Resume' }}
+            </button>
+          </form>
+          <form method="post" action="/auto-sync/{{ cfg.id }}/delete"
+                onsubmit="return confirm('Delete this auto-sync config?')">
+            <button class="btn text-xs py-1.5 px-3 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

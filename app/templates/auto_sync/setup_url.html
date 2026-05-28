@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}New Auto-Sync – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/auto-sync" class="text-slate-400 hover:text-slate-600 text-sm">← Auto-Sync</a>
+    <h1 class="text-xl font-semibold">New Auto-Sync</h1>
+  </div>
+
+  {% if error %}
+  <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">{{ error }}</div>
+  {% endif %}
+
+  <div class="card p-5 mb-4 bg-indigo-50 border-indigo-200 text-sm text-indigo-800 space-y-3">
+    <p class="font-semibold">Step 1 — Upload your Excel file to the cloud</p>
+    <div class="space-y-1.5 text-indigo-700">
+      <p><strong>Google Drive:</strong> Drive → New → File upload → share → "Anyone with the link" → copy link</p>
+      <p><strong>OneDrive:</strong> Upload file → right-click → Share → "Anyone with the link can view" → copy link</p>
+      <p><strong>Dropbox:</strong> Upload → Share → copy link (ends with ?dl=0)</p>
+    </div>
+    <p class="text-indigo-600 text-xs">The file must be publicly readable. The CRM will fetch it on your chosen schedule and sync any changes into Contacts automatically.</p>
+  </div>
+
+  <div class="card p-6">
+    <form method="post" action="/auto-sync/setup" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Sync name</label>
+        <input type="text" name="name" required placeholder="e.g. Indian Numbers Sheet"
+               class="input w-full text-sm" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">File URL</label>
+        <input type="url" name="url" required
+               placeholder="https://drive.google.com/file/d/… or Dropbox / OneDrive link"
+               class="input w-full text-sm" />
+        <p class="text-xs text-slate-400 mt-1">Paste the share link for your .xlsx file.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Sync every</label>
+        <select name="sync_interval_hours" class="select text-sm w-40">
+          <option value="1">1 hour</option>
+          <option value="2">2 hours</option>
+          <option value="4">4 hours</option>
+          <option value="8">8 hours</option>
+          <option value="24">24 hours</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary w-full py-2.5">Fetch file & pick worksheet →</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

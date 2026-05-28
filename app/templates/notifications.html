@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Notifications – Radixsol CRM{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-slate-900">Notifications</h1>
+    <p class="text-sm text-slate-500 mt-0.5">
+      {{ notifications | selectattr('is_read', 'equalto', false) | list | length }} unread
+    </p>
+  </div>
+  {% if notifications %}
+  <form method="post" action="/notifications/mark-all-read">
+    <button type="submit" class="btn btn-secondary">Mark all read</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card overflow-hidden">
+  {% if notifications %}
+  <ul class="divide-y divide-slate-100">
+    {% for n in notifications %}
+    <li class="flex items-start gap-4 px-5 py-4 {% if not n.is_read %}bg-brand-50{% else %}hover:bg-slate-50{% endif %} transition-colors">
+      <!-- Unread dot -->
+      <div class="mt-1.5 flex-shrink-0">
+        {% if not n.is_read %}
+        <span class="block w-2 h-2 rounded-full bg-brand-600"></span>
+        {% else %}
+        <span class="block w-2 h-2 rounded-full bg-slate-200"></span>
+        {% endif %}
+      </div>
+
+      <div class="flex-1 min-w-0">
+        <p class="text-sm {% if not n.is_read %}font-semibold text-slate-800{% else %}text-slate-600{% endif %}">
+          {{ n.message }}
+        </p>
+        <p class="text-xs text-slate-400 mt-0.5">{{ n.created_at | date }}</p>
+      </div>
+
+      <div class="flex items-center gap-2 flex-shrink-0">
+        {% if n.link %}
+        <form method="post" action="/notifications/{{ n.id }}/read">
+          <button type="submit" class="text-xs text-brand-600 hover:underline font-medium">View →</button>
+        </form>
+        {% endif %}
+        {% if not n.is_read %}
+        <form method="post" action="/notifications/{{ n.id }}/read">
+          <button type="submit" class="text-xs text-slate-400 hover:text-slate-600">Dismiss</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="py-16 text-center">
+    <svg class="w-10 h-10 text-slate-200 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+    <p class="text-slate-400 text-sm">No notifications yet</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Select Worksheets – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/import/excel-sync" class="text-slate-400 hover:text-slate-600 text-sm">← Re-upload</a>
+    <h1 class="text-xl font-semibold">Select Worksheets</h1>
+  </div>
+
+  {% if error %}
+  <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">{{ error }}</div>
+  {% endif %}
+
+  <p class="text-sm text-slate-500 mb-4">Found <strong>{{ sheets | length }}</strong> worksheet{% if sheets | length != 1 %}s{% endif %} with data. Choose which to include in this sync.</p>
+
+  <form method="post" action="/import/excel-sync/sheets/{{ sid }}" class="space-y-4">
+    <div class="card divide-y divide-slate-100">
+      {% for sheet in sheets %}
+      <label class="flex items-start gap-3 px-4 py-3.5 hover:bg-slate-50 cursor-pointer">
+        <input type="checkbox" name="sheets" value="{{ sheet.name }}" checked
+               class="mt-0.5 rounded accent-brand-600" />
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold text-slate-800">{{ sheet.name }}</div>
+          <div class="text-xs text-slate-400 mt-0.5">{{ sheet.count }} rows</div>
+          {% if sheet.headers %}
+          <div class="flex flex-wrap gap-1 mt-1.5">
+            {% for h in sheet.headers %}
+            <span class="badge bg-slate-100 text-slate-600 text-[10px]">{{ h }}</span>
+            {% endfor %}
+            {% if sheet.headers | length == 6 %}<span class="text-[10px] text-slate-400">…</span>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="flex gap-3">
+      <button type="submit" class="btn btn-primary">Continue to Column Mapping →</button>
+      <a href="/import/excel-sync" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

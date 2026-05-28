@@ -215,6 +215,10 @@ def client_create(
         Lead.client_id.is_(None),
         Lead.company.ilike(client.name),
     ).update({"client_id": client.id}, synchronize_session=False)
+    if client.owner_id:
+        from app.services.notify import notify_assignment
+        notify_assignment(db, assignee_id=client.owner_id, assigned_by_id=user.id,
+                          entity_type="company", entity_name=client.name, link=f"/clients/{client.id}")
     db.commit()
     return flash(RedirectResponse(f"/clients/{client.id}", 303), "Company created.")
 
@@ -284,7 +288,13 @@ def client_update(
     client.email = email or None
     client.linkedin_url = linkedin_url or None
     if user.is_manager:
-        client.owner_id = int(owner_id) if owner_id.strip().isdigit() else None
+        prev_owner = client.owner_id
+        new_owner = int(owner_id) if owner_id.strip().isdigit() else None
+        client.owner_id = new_owner
+        if new_owner and new_owner != prev_owner:
+            from app.services.notify import notify_assignment
+            notify_assignment(db, assignee_id=new_owner, assigned_by_id=user.id,
+                              entity_type="company", entity_name=client.name, link=f"/clients/{client_id}")
     db.commit()
     return flash(RedirectResponse(f"/clients/{client_id}", 303), "Company updated.")
 

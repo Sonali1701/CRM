@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Excel Sync – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="max-w-xl">
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/leads" class="text-slate-400 hover:text-slate-600 text-sm">← Contacts</a>
+    <h1 class="text-xl font-semibold">Excel Sync</h1>
+  </div>
+
+  {% if error %}
+  <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">{{ error }}</div>
+  {% endif %}
+
+  <div class="card p-6 space-y-5">
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-sm text-indigo-800 space-y-2">
+      <p class="font-semibold">How Excel Sync works</p>
+      <ol class="list-decimal list-inside space-y-1 text-indigo-700">
+        <li>Upload your team's Excel sheet (.xlsx) — any number of worksheets</li>
+        <li>Choose which worksheets to include</li>
+        <li>Map your columns to CRM fields (status, follow-up notes, follow-up date)</li>
+        <li>Sync: <strong>existing contacts are updated</strong>, new ones are created</li>
+      </ol>
+    </div>
+
+    <div class="text-sm space-y-1">
+      <p class="font-medium text-slate-700">What gets synced</p>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="flex items-center gap-1.5 text-slate-600">
+          <span class="w-2 h-2 rounded-full bg-green-400"></span> Contact fields (name, email, company…)
+        </div>
+        <div class="flex items-center gap-1.5 text-slate-600">
+          <span class="w-2 h-2 rounded-full bg-blue-400"></span> Status updates
+        </div>
+        <div class="flex items-center gap-1.5 text-slate-600">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span> Follow-up notes → Activity logged
+        </div>
+        <div class="flex items-center gap-1.5 text-slate-600">
+          <span class="w-2 h-2 rounded-full bg-indigo-400"></span> Follow-up dates → Task reminder
+        </div>
+      </div>
+      <p class="text-xs text-slate-400 mt-1">Matching is done by email address. Contacts without an email match are created as new.</p>
+    </div>
+
+    <form method="post" action="/import/excel-sync" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-2">Choose Excel file (.xlsx)</label>
+        <div x-data="{ name: '' }">
+          <input type="file" name="file" accept=".xlsx,.xls" required
+            @change="name = $event.target.files[0]?.name || ''"
+            class="block w-full text-sm text-slate-500
+              file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0
+              file:text-sm file:font-medium file:bg-brand-600 file:text-white
+              hover:file:bg-brand-700 file:cursor-pointer cursor-pointer" />
+          <p x-show="name" x-text="'Selected: ' + name" class="text-xs text-slate-500 mt-1"></p>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary w-full py-2.5">
+        Upload &amp; Select Worksheets →
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

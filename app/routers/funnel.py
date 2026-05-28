@@ -20,21 +20,12 @@ _FUNNEL_STAGES = [
     LeadStatus.CONVERTED,
 ]
 
-_COLORS = {
-    LeadStatus.NEW: "bg-slate-100 text-slate-700 border-slate-200",
-    LeadStatus.CONTACTED: "bg-blue-50 text-blue-700 border-blue-200",
-    LeadStatus.QUALIFIED: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    LeadStatus.CONVERTED: "bg-green-50 text-green-700 border-green-200",
-    LeadStatus.DISQUALIFIED: "bg-red-50 text-red-700 border-red-200",
-}
-
-# SVG fill hex — dark-to-light blue gradient (navy → mid-blue → sky → teal)
+# SVG fill hex — dark-to-light blue gradient (navy → mid-blue → sky → cyan)
 _FILL_HEX = {
     LeadStatus.NEW: "#0c2340",
     LeadStatus.CONTACTED: "#1a56db",
     LeadStatus.QUALIFIED: "#3f83f8",
     LeadStatus.CONVERTED: "#0ea5e9",
-    LeadStatus.DISQUALIFIED: "#ef4444",
 }
 
 # Fixed funnel widths (px out of 600) for each stage — always decreasing
@@ -54,26 +45,20 @@ def funnel_view(request: Request, user: User = Depends(require_user), db: Sessio
         by_status[lead.status].append(lead)
 
     total = len(leads)
-    top_count = len(by_status[LeadStatus.NEW]) or 1
 
     stages = []
     for status in _FUNNEL_STAGES:
         bucket = by_status[status]
         count = len(bucket)
-        pct_total = round(count / total * 100) if total else 0
-        pct_bar = round(count / top_count * 100) if top_count else 0
         idx = len(stages)
         stages.append({
             "status": status,
             "label": status.value.replace("_", " ").title(),
             "leads": bucket[:8],
             "count": count,
-            "pct_total": pct_total,
-            "pct_bar": pct_bar,
-            # Fixed width for each funnel layer (visual shape is fixed, not data-driven)
+            "pct_total": round(count / total * 100) if total else 0,
             "top_w": _FUNNEL_WIDTHS[idx],
             "bot_w": _FUNNEL_WIDTHS[idx + 1] if idx + 1 < len(_FUNNEL_WIDTHS) else 60,
-            "color": _COLORS[status],
             "fill": _FILL_HEX[status],
         })
 

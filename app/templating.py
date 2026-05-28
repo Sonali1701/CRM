@@ -48,3 +48,4 @@ templates.env.globals["STAGE_LABELS"] = STAGE_LABELS
 templates.env.globals["PIPELINE_STAGES"] = PIPELINE_STAGES
 templates.env.globals["OPEN_STAGES"] = OPEN_STAGES
 templates.env.globals["DealStage"] = DealStage
+templates.env.globals["now"] = lambda: datetime.now(timezone.utc).timestamp()

@@ -73,7 +73,14 @@ def find_lead_duplicate(
 
 
 @router.get("")
-def leads_list(request: Request, status: str = "", search: str = "", user: User = Depends(require_user), db: Session = Depends(get_db)):
+def leads_list(
+    request: Request, status: str = "", search: str = "",
+    sort: str = "newest", page: int = 1,
+    user: User = Depends(require_user), db: Session = Depends(get_db)
+):
+    from app.services.lead_cache import get_latest_activity_note
+
+    # Build query
     q = _leads_query(db, user)
     if status:
         q = q.filter(Lead.status == status)
@@ -83,9 +90,34 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
             or_(Lead.first_name.ilike(like), Lead.last_name.ilike(like),
                 Lead.company.ilike(like), Lead.email.ilike(like))
         )
-    leads = q.order_by(Lead.created_at.desc()).all()
+
+    # Sort options
+    if sort == "follow-up":
+        q = q.order_by(Lead.next_follow_up_at.asc().nulls_last())
+    elif sort == "status":
+        q = q.order_by(Lead.status, Lead.created_at.desc())
+    else:  # newest
+        q = q.order_by(Lead.created_at.desc())
+
+    # Pagination: 50 per page
+    per_page = 50
+    total = q.count()
+    total_pages = (total + per_page - 1) // per_page
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * per_page
+
+    leads = q.offset(offset).limit(per_page).all()
+
+    # Prepare data for template (add cached note preview)
+    leads_data = []
+    for lead in leads:
+        last_note = get_latest_activity_note(db, lead.id)
+        leads_data.append({
+            "lead": lead,
+            "last_note": last_note,
+        })
+
     reps = db.query(User).filter(User.is_active == True).all() if user.is_manager else []
-    # Templates + sequences available to this user for the bulk-mail modal
     from app.models import EmailTemplate, EmailSequence
     email_templates = (
         db.query(EmailTemplate)
@@ -97,9 +129,9 @@ def leads_list(request: Request, status: str = "", search: str = "", user: User 
     from app.services.ai_compose import is_ai_configured
     return templates.TemplateResponse(request, "leads/list.html", {
         "user": user, "flash": get_flash(request),
-        "leads": leads, "reps": reps,
-        "statuses": list(LeadStatus), "filter_status": status, "search": search,
-        "email_templates": email_templates, "sequences": sequences,
+        "leads_data": leads_data, "total": total, "page": page, "total_pages": total_pages,
+        "reps": reps, "statuses": list(LeadStatus), "filter_status": status, "search": search,
+        "sort": sort, "email_templates": email_templates, "sequences": sequences,
         "ai_enabled": is_ai_configured(),
     })
 

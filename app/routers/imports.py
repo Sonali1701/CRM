@@ -770,6 +770,20 @@ def _sync_leads_from_excel(rows: list[dict], mapping: dict, user: User, db: Sess
             created.append({"name": lead.name, "id": lead.id})
 
     db.commit()
+
+    # Update next_follow_up_at cache for all leads that got activities
+    from app.services.lead_cache import update_next_follow_up_cache
+    lead_ids_with_tasks = set()
+    for item in created + updated:
+        lead_id = item.get("id")
+        if lead_id:
+            lead_ids_with_tasks.add(lead_id)
+    for act in activities_added:
+        # Find which lead this activity belongs to (if available in row data)
+        pass  # activities are already committed, no need to re-update; commit already flushed
+    for lead_id in lead_ids_with_tasks:
+        update_next_follow_up_cache(db, lead_id)
+
     return {"created": created, "updated": updated, "activities": activities_added, "skipped": skipped}
 
 

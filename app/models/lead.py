@@ -66,6 +66,10 @@ class Lead(Base):
     outreach_notes_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     outreach_classified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Cached next follow-up date (from open TASK activities) for fast sorting/filtering
+    # Updated by activity creation/completion, syncs, etc.
+    next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+
     client = relationship("Client", foreign_keys=[client_id])
     owner = relationship("User", back_populates="leads", foreign_keys=[owner_id])
     converted_client = relationship("Client", foreign_keys=[converted_client_id])

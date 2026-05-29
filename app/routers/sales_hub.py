@@ -13,6 +13,7 @@ from app.deps import require_user
 from app.models import User, Lead, Activity
 from app.models.lead import LeadStatus
 from app.models.activity import ActivityType
+from app.models.daily_report import DailyReport
 from app.services.lead_intelligence import get_engagement_score
 from app.templating import templates
 
@@ -115,6 +116,46 @@ def sales_hub(request: Request, user: User = Depends(require_user), db: Session 
             })
         team_stats = sorted(team_stats, key=lambda x: x["converted"], reverse=True)
 
+    # 7. Daily Reports Analytics
+    daily_reports_q = db.query(DailyReport).filter(
+        DailyReport.report_date == today_start.date()
+    )
+    if not user.is_manager:
+        daily_reports_q = daily_reports_q.filter(DailyReport.user_id == user.id)
+
+    today_reports = daily_reports_q.all()
+    daily_metrics = {
+        "reports_submitted": len(today_reports),
+        "total_emails": sum(r.emails_sent for r in today_reports),
+        "total_calls": sum(r.calls_dialed for r in today_reports),
+        "total_meetings": sum(r.meetings_set + r.meetings_attended for r in today_reports),
+        "total_linkedin": sum(r.linkedin_requests_sent + r.linkedin_connections for r in today_reports),
+        "accounts_worked": sum(r.accounts_worked for r in today_reports),
+        "avg_emails": round(sum(r.emails_sent for r in today_reports) / len(today_reports), 1) if today_reports else 0,
+        "avg_calls": round(sum(r.calls_dialed for r in today_reports) / len(today_reports), 1) if today_reports else 0,
+        "avg_meetings": round(sum(r.meetings_set + r.meetings_attended for r in today_reports) / len(today_reports), 1) if today_reports else 0,
+    }
+
+    # Team daily reports performance (managers only)
+    team_daily_stats = []
+    if user.is_manager:
+        reps = db.query(User).filter(User.is_active == True).all()
+        for rep in reps:
+            rep_reports = db.query(DailyReport).filter(
+                DailyReport.user_id == rep.id,
+                DailyReport.report_date == today_start.date()
+            ).all()
+            if rep_reports:
+                team_daily_stats.append({
+                    "rep": rep,
+                    "reports": len(rep_reports),
+                    "emails": sum(r.emails_sent for r in rep_reports),
+                    "calls": sum(r.calls_dialed for r in rep_reports),
+                    "meetings": sum(r.meetings_set + r.meetings_attended for r in rep_reports),
+                    "accounts": sum(r.accounts_worked for r in rep_reports),
+                })
+        team_daily_stats = sorted(team_daily_stats, key=lambda x: x["emails"] + x["calls"] + x["meetings"], reverse=True)
+
     return templates.TemplateResponse(request, "sales_hub.html", {
         "user": user,
         "status_breakdown": status_breakdown,
@@ -125,5 +166,7 @@ def sales_hub(request: Request, user: User = Depends(require_user), db: Session 
         "follow_ups_due": follow_ups_due,
         "recent_activities": recent_activities,
         "team_stats": team_stats,
+        "daily_metrics": daily_metrics,
+        "team_daily_stats": team_daily_stats,
         "now": now,
     })

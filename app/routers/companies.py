@@ -1,6 +1,7 @@
 """
 Companies router — view company details and associated contacts.
 """
+import logging
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from app.flash import get_flash
 from app.models import User, Client, Lead
 from app.templating import templates
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 
@@ -24,6 +26,16 @@ def companies_list(
     db: Session = Depends(get_db),
 ):
     """List all companies (formal records + unique companies from contacts) with contact count."""
+    logger.info(f"[COMPANIES] User {user.email} accessing companies list (page={page}, sort={sort}, search={search})")
+
+    # Check total leads in database
+    total_leads = db.query(Lead).count()
+    logger.info(f"[COMPANIES] Total leads in database: {total_leads}")
+
+    # Check leads with companies
+    leads_with_company = db.query(Lead).filter(Lead.company.isnot(None)).count()
+    logger.info(f"[COMPANIES] Leads with company field: {leads_with_company}")
+
     # Get all unique company names from leads (both formal and informal)
     unique_companies_query = db.query(
         Lead.company,
@@ -48,6 +60,7 @@ def companies_list(
     # Get total count before pagination
     all_results = unique_companies_query.all()
     total = len(all_results)
+    logger.info(f"[COMPANIES] Query returned {total} unique companies")
 
     # Pagination: 50 per page
     per_page = 50
@@ -74,7 +87,9 @@ def companies_list(
             "contact_count": contact_count or 0,
         })
 
-    return templates.TemplateResponse(request, "companies/list.html", {
+    logger.info(f"[COMPANIES] Rendering {len(companies_data)} companies on page {page}/{total_pages}")
+
+    response_data = {
         "user": user,
         "flash": get_flash(request),
         "companies_data": companies_data,
@@ -83,7 +98,13 @@ def companies_list(
         "total_pages": total_pages,
         "search": search,
         "sort": sort,
-    })
+    }
+
+    logger.info(f"[COMPANIES] Response data keys: {list(response_data.keys())}")
+    logger.info(f"[COMPANIES] companies_data is None: {response_data['companies_data'] is None}")
+    logger.info(f"[COMPANIES] companies_data length: {len(response_data['companies_data']) if response_data['companies_data'] else 0}")
+
+    return templates.TemplateResponse(request, "companies/list.html", response_data)
 
 
 @router.get("/{company_id}")

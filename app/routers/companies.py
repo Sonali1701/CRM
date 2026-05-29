@@ -24,88 +24,54 @@ def companies_list(
     db: Session = Depends(get_db),
 ):
     """List all companies (formal records + unique companies from contacts) with contact count."""
-    from sqlalchemy import distinct, union_all
-
-    # Get formal company records with their linked contact counts
-    formal_companies = db.query(
-        Client.id,
-        Client.name,
-        Client.industry,
-        Client.website,
-        Client.created_at,
-        Client.owner_id,
-        func.count(distinct(Lead.id)).label('contact_count'),
-        func.cast(Client.id, db.Integer).label('client_id'),
-        func.cast(1, db.Integer).label('is_formal')
-    ).outerjoin(Lead, Lead.client_id == Client.id)
-
-    if search:
-        like = f"%{search}%"
-        formal_companies = formal_companies.filter(
-            or_(Client.name.ilike(like), Client.industry.ilike(like))
-        )
-
-    formal_companies = formal_companies.group_by(Client.id, Client.name, Client.industry, Client.website, Client.created_at, Client.owner_id)
-
-    # Get informal companies (from Lead.company field) without a formal Client record
-    informal_companies = db.query(
-        func.cast(None, db.Integer).label('id'),
-        Lead.company.label('name'),
-        func.cast(None, db.String).label('industry'),
-        func.cast(None, db.String).label('website'),
-        func.cast(None, db.DateTime).label('created_at'),
-        func.cast(None, db.Integer).label('owner_id'),
-        func.count(distinct(Lead.id)).label('contact_count'),
-        func.cast(None, db.Integer).label('client_id'),
-        func.cast(0, db.Integer).label('is_formal')
+    # Get all unique company names from leads (both formal and informal)
+    unique_companies_query = db.query(
+        Lead.company,
+        Lead.client_id,
+        func.count(Lead.id).label('contact_count')
     ).filter(
-        Lead.company.isnot(None),
-        Lead.client_id.is_(None)  # Only companies without formal Client records
-    )
+        Lead.company.isnot(None)
+    ).group_by(Lead.company, Lead.client_id)
 
     if search:
         like = f"%{search}%"
-        informal_companies = informal_companies.filter(Lead.company.ilike(like))
+        unique_companies_query = unique_companies_query.filter(Lead.company.ilike(like))
 
-    informal_companies = informal_companies.group_by(Lead.company)
-
-    # Combine both queries
-    all_companies = formal_companies.union_all(informal_companies).subquery()
-
-    # Query combined results
-    q = db.query(all_companies)
-
-    # Sort options
+    # Apply sorting
     if sort == "contacts":
-        q = q.order_by(all_companies.c.contact_count.desc())
+        unique_companies_query = unique_companies_query.order_by(func.count(Lead.id).desc())
     elif sort == "name":
-        q = q.order_by(all_companies.c.name)
-    else:  # newest
-        q = q.order_by(all_companies.c.created_at.desc().nulls_last())
+        unique_companies_query = unique_companies_query.order_by(Lead.company)
+    else:  # newest - order by first contact creation
+        unique_companies_query = unique_companies_query.order_by(func.min(Lead.created_at).desc())
+
+    # Get total count before pagination
+    all_results = unique_companies_query.all()
+    total = len(all_results)
 
     # Pagination: 50 per page
     per_page = 50
-    total = q.count()
     total_pages = (total + per_page - 1) // per_page
     page = max(1, min(page, total_pages))
     offset = (page - 1) * per_page
 
-    companies = q.offset(offset).limit(per_page).all()
+    # Apply pagination
+    companies = all_results[offset:offset + per_page]
 
     # Format results
     companies_data = []
-    for row in companies:
+    for company_name, client_id, contact_count in companies:
         company_obj = None
-        if row.id:  # Formal company
-            company_obj = db.query(Client).filter(Client.id == row.id).first()
+        if client_id:
+            company_obj = db.query(Client).filter(Client.id == client_id).first()
 
         companies_data.append({
             "company": company_obj,
-            "company_name": row.name,
-            "industry": row.industry,
-            "website": row.website,
-            "is_formal": row.is_formal == 1,
-            "contact_count": row.contact_count or 0,
+            "company_name": company_name,
+            "industry": company_obj.industry if company_obj else None,
+            "website": company_obj.website if company_obj else None,
+            "is_formal": company_obj is not None,
+            "contact_count": contact_count or 0,
         })
 
     return templates.TemplateResponse(request, "companies/list.html", {

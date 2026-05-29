@@ -112,13 +112,15 @@ html, body { overflow-x: hidden; max-width: 100vw; }
 /* Compact table — for wide multi-column tables (Contacts, Companies) */
 table.crm.crm-compact { table-layout: fixed; }
 table.crm.crm-compact thead th { padding: .5rem .625rem; font-size: .65rem; }
-table.crm.crm-compact tbody td { padding: .5rem .625rem; font-size: .8125rem; }
+table.crm.crm-compact tbody td { padding: .5rem .625rem; font-size: .8125rem; color: #111827; }
+.dark table.crm.crm-compact tbody td { color: #f3f4f6; }
 table.crm.crm-compact .avatar { width: 1.5rem; height: 1.5rem; font-size: .65rem; }
 table.crm.crm-compact td > div.truncate,
 table.crm.crm-compact td > a.truncate,
 table.crm.crm-compact td > span.truncate { max-width: 100%; }
 .cell-trunc { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-trunc-sm { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dark .cell-trunc, .dark .cell-trunc-sm { color: #f3f4f6; }
 
 /* ── Avatar ──────────────────────────────────────────────── */
 .avatar {
@@ -150,3 +152,23 @@ table.crm.crm-compact td > span.truncate { max-width: 100%; }
 /* ── Misc ────────────────────────────────────────────────── */
 [x-cloak] { display: none !important; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── Dark mode text colors ───────────────────────────────── */
+.dark a:not(.btn) { color: #60a5fa; }
+.dark a:not(.btn):hover { color: #93c5fd; }
+.dark span:not(.badge) { color: #f3f4f6; }
+.dark p { color: #f3f4f6; }
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 { color: #f3f4f6; }
+.dark label { color: #d1d5db; }
+.dark th { color: #d1d5db; }
+.dark td { color: #f3f4f6; }
+.dark .text-slate-900 { color: #f3f4f6; }
+.dark .text-slate-800 { color: #e2e8f0; }
+.dark .text-slate-700 { color: #cbd5e1; }
+.dark .text-slate-600 { color: #94a3b8; }
+.dark .text-slate-500 { color: #64748b; }
+.dark .text-slate-400 { color: #475569; }
+.dark .text-gray-900 { color: #f3f4f6; }
+.dark .text-gray-800 { color: #e2e8f0; }
+.dark .text-gray-700 { color: #cbd5e1; }
+.dark .text-gray-600 { color: #94a3b8; }

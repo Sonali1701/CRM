@@ -51,3 +51,6 @@ templates.env.globals["OPEN_STAGES"] = OPEN_STAGES
 templates.env.globals["DealStage"] = DealStage
 templates.env.globals["get_flash"] = get_flash
 templates.env.globals["now"] = lambda: datetime.now(timezone.utc).timestamp()
+templates.env.globals["max"] = max
+templates.env.globals["min"] = min
+templates.env.globals["range"] = range

@@ -220,7 +220,9 @@ def lead_create(
     db.add(lead)
     db.flush()
     from app.services.outreach_reminder import schedule_outreach_reminder
+    from app.services.status_transition import auto_transition_on_activity
     schedule_outreach_reminder(db, lead, user.id)
+    auto_transition_on_activity(db, lead.id)
     if lead.owner_id:
         from app.services.notify import notify_assignment
         notify_assignment(db, assignee_id=lead.owner_id, assigned_by_id=user.id,
@@ -300,7 +302,9 @@ def lead_update(
             notify_assignment(db, assignee_id=new_owner, assigned_by_id=user.id,
                               entity_type="contact", entity_name=lead.name, link=f"/leads/{lead.id}")
     from app.services.outreach_reminder import schedule_outreach_reminder
+    from app.services.status_transition import auto_transition_on_activity
     schedule_outreach_reminder(db, lead, user.id)
+    auto_transition_on_activity(db, lead.id)
     db.commit()
     return flash(RedirectResponse("/leads", 303), "Contact updated.")
 

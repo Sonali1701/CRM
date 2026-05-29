@@ -126,8 +126,9 @@
             <td class="text-slate-500 text-center">—</td>
             <td class="text-slate-500">—</td>
             <td class="text-slate-500 text-xs">—</td>
-            <td>
-              <button class="btn btn-primary btn-sm" onclick="createCompany('{{ company_name }}')">Create</button>
+            <td class="flex gap-1">
+              <button class="btn btn-ghost btn-sm" onclick="viewInformalCompanyContacts({{ contact_count }}, '{{ company_name }}')" title="View {{ contact_count }} contact(s)">View Contacts</button>
+              <button class="btn btn-primary btn-sm" onclick="createCompany('{{ company_name }}')" title="Create formal company record">Create</button>
             </td>
           </tr>
           {% endfor %}
@@ -160,7 +161,10 @@
           </td>
           <td class="text-center">{{ contact_count }}</td>
           <td><span class="badge bg-amber-100 text-amber-700">Not Created</span></td>
-          <td><button class="btn btn-primary btn-sm" onclick="createCompany('{{ company_name }}')">Create</button></td>
+          <td class="flex gap-1">
+            <button class="btn btn-ghost btn-sm" onclick="viewInformalCompanyContacts({{ contact_count }}, '{{ company_name }}')">View Contacts</button>
+            <button class="btn btn-primary btn-sm" onclick="createCompany('{{ company_name }}')">Create</button>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -180,6 +184,12 @@
 function createCompany(name) {
   // Redirect to new company form with pre-filled name
   window.location.href = '/clients/new?name=' + encodeURIComponent(name);
+}
+
+function viewInformalCompanyContacts(contactCount, companyName) {
+  // Navigate to leads list and filter by company
+  // The leads page will show all contacts associated with this informal company
+  window.location.href = '/leads?search=' + encodeURIComponent(companyName);
 }
 </script>
 {% endblock %}

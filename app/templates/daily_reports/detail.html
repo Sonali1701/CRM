@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ report.report_date | date }} – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-5 flex items-center justify-between">
+  <div>
+    <h1 class="text-xl font-semibold">{{ report.report_date | date }}</h1>
+    <p class="text-sm text-slate-500 mt-0.5">Daily activity report</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="/daily-reports/{{ report.id }}/edit" class="btn btn-secondary">Edit</a>
+    <form method="post" action="/daily-reports/{{ report.id }}/delete" style="display:inline;">
+      <button type="submit" class="btn btn-ghost text-red-600" onclick="return confirm('Delete this report?')">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <!-- Basic Info -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-slate-700 mb-4">Basic Info</h2>
+    <div class="space-y-3">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-slate-500">Date</p>
+        <p class="text-slate-900 font-medium">{{ report.report_date | date }}</p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-wide text-slate-500">Client</p>
+        <p class="text-slate-900 font-medium">{{ report.client_name or '—' }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics Overview -->
+  <div class="card">
+    <h2 class="text-sm font-semibold text-slate-700 mb-4">Metrics Summary</h2>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="p-2 bg-slate-50 rounded">
+        <p class="text-xs text-slate-600">Accounts</p>
+        <p class="text-lg font-semibold text-slate-900">{{ report.accounts_worked }}</p>
+      </div>
+      <div class="p-2 bg-slate-50 rounded">
+        <p class="text-xs text-slate-600">Emails</p>
+        <p class="text-lg font-semibold text-slate-900">{{ report.emails_sent }}</p>
+      </div>
+      <div class="p-2 bg-slate-50 rounded">
+        <p class="text-xs text-slate-600">Calls/Texts</p>
+        <p class="text-lg font-semibold text-slate-900">{{ report.calls_dialed }}</p>
+      </div>
+      <div class="p-2 bg-slate-50 rounded">
+        <p class="text-xs text-slate-600">Meetings</p>
+        <p class="text-lg font-semibold text-slate-900">{{ report.meetings_set + report.meetings_attended }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Activity Details -->
+<div class="card mt-4">
+  <h2 class="text-sm font-semibold text-slate-700 mb-4">Activity Breakdown</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div>
+      <p class="text-xs uppercase tracking-wide text-slate-500 mb-1">Meetings Set</p>
+      <p class="text-2xl font-semibold text-slate-900">{{ report.meetings_set }}</p>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-wide text-slate-500 mb-1">Meetings Attended</p>
+      <p class="text-2xl font-semibold text-slate-900">{{ report.meetings_attended }}</p>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-wide text-slate-500 mb-1">LinkedIn Requests</p>
+      <p class="text-2xl font-semibold text-slate-900">{{ report.linkedin_requests_sent }}</p>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-wide text-slate-500 mb-1">LinkedIn Connections</p>
+      <p class="text-2xl font-semibold text-slate-900">{{ report.linkedin_connections }}</p>
+    </div>
+  </div>
+</div>
+
+<!-- Notes -->
+{% if report.important_conversations %}
+<div class="card mt-4">
+  <h2 class="text-sm font-semibold text-slate-700 mb-3">Important Conversations</h2>
+  <p class="text-slate-700 whitespace-pre-wrap">{{ report.important_conversations }}</p>
+</div>
+{% endif %}
+
+<!-- Metadata -->
+<div class="text-xs text-slate-500 mt-4">
+  <p>Created {{ report.created_at | date }}</p>
+  {% if report.updated_at != report.created_at %}
+  <p>Last updated {{ report.updated_at | date }}</p>
+  {% endif %}
+</div>
+
+<a href="/daily-reports" class="btn btn-ghost mt-4">Back to Reports</a>
+{% endblock %}

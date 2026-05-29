@@ -15,6 +15,7 @@ from app.models.sales_planning import (
 )
 from app.models.auto_sync import AutoSyncConfig
 from app.models.audit_log import AuditLog
+from app.models.daily_report import DailyReport
 
 __all__ = [
     "User",
@@ -45,4 +46,5 @@ __all__ = [
     "MEDDIC_DIMENSIONS",
     "AutoSyncConfig",
     "AuditLog",
+    "DailyReport",
 ]

@@ -153,7 +153,10 @@ def clients_list(request: Request, search: str = "", type_: str = "", user: User
     ).filter(
         Lead.company.isnot(None),
         Lead.client_id.is_(None)  # Only companies without formal Client records
-    ).group_by(Lead.company, Lead.client_id)
+    )
+    if not user.is_manager:
+        informal_companies_query = informal_companies_query.filter(Lead.owner_id == user.id)
+    informal_companies_query = informal_companies_query.group_by(Lead.company, Lead.client_id)
 
     if search:
         informal_companies_query = informal_companies_query.filter(Lead.company.ilike(f"%{search}%"))

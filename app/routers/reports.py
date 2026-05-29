@@ -52,9 +52,11 @@ async def reports(request: Request, user: User = Depends(require_user), db: Sess
     # Scope: managers see all, reps see only their own
     deals_q = db.query(Deal)
     acts_q = db.query(Activity)
+    leads_q = db.query(Lead)
     if not user.is_manager:
         deals_q = deals_q.filter(Deal.owner_id == user.id)
         acts_q = acts_q.filter(Activity.created_by_id == user.id)
+        leads_q = leads_q.filter(Lead.owner_id == user.id)
 
     all_deals = deals_q.all()
     open_deals = [d for d in all_deals if d.stage in OPEN_STAGES]
@@ -90,11 +92,12 @@ async def reports(request: Request, user: User = Depends(require_user), db: Sess
     for row in by_stage:
         row["pct"] = int(row["value"] / max_stage_value * 100) if max_stage_value else 0
 
-    # Funnel: leads → qualified → won
+    # Funnel: leads → qualified → won (respecting user scope)
+    all_leads = leads_q.all()
     lead_counts = {
-        "total_leads": db.query(func.count(Lead.id)).scalar() or 0,
-        "qualified": db.query(func.count(Lead.id)).filter(Lead.status == LeadStatus.QUALIFIED).scalar() or 0,
-        "converted": db.query(func.count(Lead.id)).filter(Lead.status == LeadStatus.CONVERTED).scalar() or 0,
+        "total_leads": len(all_leads),
+        "qualified": len([l for l in all_leads if l.status == LeadStatus.QUALIFIED]),
+        "converted": len([l for l in all_leads if l.status == LeadStatus.CONVERTED]),
         "won_deals": len(won),
     }
 

@@ -22,6 +22,7 @@ class AutoSyncConfig(Base):
     # JSON summary of last run: {created, updated, activities, skipped} counts
     last_result: Mapped[str | None] = mapped_column(Text)
     last_error: Mapped[str | None] = mapped_column(Text)
+    last_file_hash: Mapped[str | None] = mapped_column(String(64))
     owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

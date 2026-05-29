@@ -18,19 +18,21 @@ _FUNNEL_STAGES = [
     LeadStatus.CONTACTED,
     LeadStatus.QUALIFIED,
     LeadStatus.CONVERTED,
+    LeadStatus.WON,
 ]
 
-# SVG fill hex — dark-to-light blue gradient (navy → mid-blue → sky → cyan)
+# SVG fill hex — dark-to-light blue gradient (navy → mid-blue → sky → cyan → gold)
 _FILL_HEX = {
     LeadStatus.NEW: "#0c2340",
     LeadStatus.CONTACTED: "#1a56db",
     LeadStatus.QUALIFIED: "#3f83f8",
     LeadStatus.CONVERTED: "#0ea5e9",
+    LeadStatus.WON: "#fbbf24",
 }
 
 # Fixed funnel widths (px out of 600) for each stage — always decreasing
 # so the shape looks like a proper inverted triangle regardless of data.
-_FUNNEL_WIDTHS = [556, 424, 292, 160]
+_FUNNEL_WIDTHS = [556, 424, 292, 160, 80]
 
 
 @router.get("/funnel")

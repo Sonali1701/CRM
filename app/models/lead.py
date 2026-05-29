@@ -11,8 +11,9 @@ class LeadStatus(str, enum.Enum):
     NEW = "new"
     CONTACTED = "contacted"
     QUALIFIED = "qualified"
-    DISQUALIFIED = "disqualified"
     CONVERTED = "converted"
+    WON = "won"
+    DISQUALIFIED = "disqualified"
 
 
 class Lead(Base):

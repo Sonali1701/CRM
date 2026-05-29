@@ -3,6 +3,7 @@ Fetch an Excel/Google Sheets file from a URL and run the existing
 _sync_leads_from_excel logic. Called both from the background worker
 and from the "Run Now" button.
 """
+import hashlib
 import json
 import re
 import threading
@@ -72,7 +73,7 @@ def run_sync(config: AutoSyncConfig, db) -> dict:
     """
     Fetch the configured URL, parse the Excel file, run the sync,
     update config.last_synced_at / last_result / last_error.
-    Returns the result dict.
+    Returns the result dict. If file hash unchanged, skips sync.
     """
     from app.routers.imports import (
         _parse_excel_all_sheets, _sync_leads_from_excel, _SYNC_ALIASES, _auto_map,
@@ -88,6 +89,17 @@ def run_sync(config: AutoSyncConfig, db) -> dict:
         config.last_synced_at = datetime.now(timezone.utc)
         db.commit()
         return {}
+
+    # Calculate file hash for idempotency
+    file_hash = hashlib.sha256(raw).hexdigest()
+    if config.last_file_hash == file_hash:
+        # File unchanged since last sync
+        summary = {"status": "unchanged", "created": 0, "updated": 0, "activities": 0, "skipped": 0}
+        config.last_result = json.dumps(summary)
+        config.last_error = None
+        config.last_synced_at = datetime.now(timezone.utc)
+        db.commit()
+        return summary
 
     sheets = _parse_excel_all_sheets(raw)
     if isinstance(sheets, str):
@@ -122,6 +134,7 @@ def run_sync(config: AutoSyncConfig, db) -> dict:
     }
     config.last_result = json.dumps(summary)
     config.last_error = None
+    config.last_file_hash = file_hash
     config.last_synced_at = datetime.now(timezone.utc)
     db.commit()
     return summary

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{% if report %}Edit{% else %}New{% endif %} Daily Report – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-5">
+  <h1 class="text-xl font-semibold">{% if report %}Edit Report{% else %}New Daily Report{% endif %}</h1>
+  <p class="text-sm text-slate-500 mt-0.5">Track your daily activity and metrics</p>
+</div>
+
+<form method="post" class="card max-w-2xl">
+  <div class="grid grid-cols-2 gap-4 mb-4">
+    <!-- Date -->
+    <div>
+      <label for="report_date" class="label">Date</label>
+      <input type="date" id="report_date" name="report_date"
+             value="{% if report %}{{ report.report_date }}{% else %}{{ today }}{% endif %}"
+             required class="input" />
+    </div>
+
+    <!-- Client Name -->
+    <div>
+      <label for="client_name" class="label">Client Name</label>
+      <input type="text" id="client_name" name="client_name"
+             value="{% if report %}{{ report.client_name or '' }}{% endif %}"
+             placeholder="e.g., Acme Corp" class="input" />
+    </div>
+  </div>
+
+  <!-- Metrics Grid -->
+  <div class="mb-6">
+    <h2 class="text-sm font-semibold text-slate-700 mb-3">Activity Metrics</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div>
+        <label for="accounts_worked" class="label">Accounts Worked On</label>
+        <input type="number" id="accounts_worked" name="accounts_worked" min="0"
+               value="{% if report %}{{ report.accounts_worked }}{% else %}0{% endif %}"
+               class="input" />
+      </div>
+
+      <div>
+        <label for="emails_sent" class="label">Emails Sent</label>
+        <input type="number" id="emails_sent" name="emails_sent" min="0"
+               value="{% if report %}{{ report.emails_sent }}{% else %}0{% endif %}"
+               class="input" />
+      </div>
+
+      <div>
+        <label for="calls_dialed" class="label">Calls/Texts</label>
+        <input type="number" id="calls_dialed" name="calls_dialed" min="0"
+               value="{% if report %}{{ report.calls_dialed }}{% else %}0{% endif %}"
+               class="input" />
+      </div>
+
+      <div>
+        <label for="meetings_set" class="label">Meetings Set</label>
+        <input type="number" id="meetings_set" name="meetings_set" min="0"
+               value="{% if report %}{{ report.meetings_set }}{% else %}0{% endif %}"
+               class="input" />
+      </div>
+
+      <div>
+        <label for="meetings_attended" class="label">Meetings Attended</label>
+        <input type="number" id="meetings_attended" name="meetings_attended" min="0"
+               value="{% if report %}{{ report.meetings_attended }}{% else %}0{% endif %}"
+               class="input" />
+      </div>
+
+      <div>
+        <label for="linkedin_requests_sent" class="label">LinkedIn Requests</label>
+        <input type="number" id="linkedin_requests_sent" name="linkedin_requests_sent" min="0"
+               value="{% if report %}{{ report.linkedin_requests_sent }}{% else %}0{% endif %}"
+               class="input" />
+      </div>
+
+      <div>
+        <label for="linkedin_connections" class="label">LinkedIn Connections</label>
+        <input type="number" id="linkedin_connections" name="linkedin_connections" min="0"
+               value="{% if report %}{{ report.linkedin_connections }}{% else %}0{% endif %}"
+               class="input" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes -->
+  <div class="mb-6">
+    <label for="important_conversations" class="label">Important Conversations / Notes</label>
+    <textarea id="important_conversations" name="important_conversations"
+              rows="4" placeholder="Any important conversations, follow-ups, or notes from today..."
+              class="input">{% if report %}{{ report.important_conversations or '' }}{% endif %}</textarea>
+  </div>
+
+  <!-- Buttons -->
+  <div class="flex gap-2">
+    {% if report %}
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a href="/daily-reports/{{ report.id }}" class="btn btn-ghost">Cancel</a>
+    {% else %}
+      <button type="submit" class="btn btn-primary">Create Report</button>
+      <a href="/daily-reports" class="btn btn-ghost">Cancel</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

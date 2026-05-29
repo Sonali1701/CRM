@@ -9,39 +9,62 @@
 .btn-primary:hover { background: #4338ca; border-color: #4338ca; }
 .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; }
 .btn-secondary:hover { background: #f9fafb; }
+.dark .btn-secondary { background: #1f2937; color: #e5e7eb; border: 1px solid #374151; }
+.dark .btn-secondary:hover { background: #374151; }
 .btn-danger    { background: #dc2626; color: #fff; border: 1px solid #dc2626; }
 .btn-danger:hover { background: #b91c1c; }
 .btn-ghost     { background: transparent; color: #6b7280; border: 1px solid transparent; }
 .btn-ghost:hover { background: #f3f4f6; color: #374151; }
+.dark .btn-ghost { color: #9ca3af; }
+.dark .btn-ghost:hover { background: #374151; color: #e5e7eb; }
 .btn-sm        { padding: 0.25rem 0.625rem; font-size: 0.75rem; }
 
 /* ── Form controls ───────────────────────────────────────── */
 .input, .select, .textarea {
   width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db;
-  border-radius: 0.375rem; font-size: 0.875rem; background: #fff;
+  border-radius: 0.375rem; font-size: 0.875rem; background: #fff; color: #111827;
   transition: border-color .15s, box-shadow .15s; outline: none;
+}
+.dark .input, .dark .select, .dark .textarea {
+  background: #1f2937; border-color: #374151; color: #f3f4f6;
 }
 .input:focus, .select:focus, .textarea:focus {
   border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15);
 }
+.dark .input:focus, .dark .select:focus, .dark .textarea:focus {
+  border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.25);
+}
 .label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: .25rem; }
+.dark .label { color: #d1d5db; }
 
 /* ── Cards ───────────────────────────────────────────────── */
 .card { background: #fff; border-radius: 0.5rem; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.dark .card { background: #1f2937; border-color: #374151; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 
 /* ── Badges ──────────────────────────────────────────────── */
 .badge { display: inline-flex; align-items: center; padding: .125rem .625rem; border-radius: 9999px; font-size: .75rem; font-weight: 500; }
 .badge-new          { background: #eff6ff; color: #1d4ed8; }
+.dark .badge-new    { background: #1e3a8a; color: #93c5fd; }
 .badge-contacted    { background: #fefce8; color: #a16207; }
+.dark .badge-contacted { background: #78350f; color: #fcd34d; }
 .badge-qualified    { background: #f0fdf4; color: #15803d; }
+.dark .badge-qualified { background: #166534; color: #86efac; }
 .badge-disqualified { background: #f1f5f9; color: #64748b; }
+.dark .badge-disqualified { background: #334155; color: #cbd5e1; }
 .badge-converted    { background: #faf5ff; color: #7c3aed; }
+.dark .badge-converted { background: #581c87; color: #d8b4fe; }
 .badge-stale        { background: #fff7ed; color: #c2410c; }
+.dark .badge-stale  { background: #7c2d12; color: #ffedd5; }
 .badge-won          { background: #f0fdf4; color: #15803d; }
+.dark .badge-won    { background: #166534; color: #86efac; }
 .badge-lost         { background: #fef2f2; color: #dc2626; }
+.dark .badge-lost   { background: #7f1d1d; color: #fca5a5; }
 .badge-admin        { background: #eff6ff; color: #1d4ed8; }
+.dark .badge-admin  { background: #1e3a8a; color: #93c5fd; }
 .badge-manager      { background: #faf5ff; color: #7c3aed; }
+.dark .badge-manager { background: #581c87; color: #d8b4fe; }
 .badge-sales        { background: #f0fdf4; color: #15803d; }
+.dark .badge-sales  { background: #166534; color: #86efac; }
 
 /* ── Tables ──────────────────────────────────────────────── */
 table.crm { width: 100%; font-size: .875rem; border-collapse: collapse; }
@@ -50,9 +73,14 @@ table.crm thead th {
   text-transform: uppercase; color: #6b7280; padding: .625rem 1rem;
   background: #f9fafb; border-bottom: 1px solid #e5e7eb;
 }
-table.crm tbody td { padding: .75rem 1rem; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.dark table.crm thead th {
+  color: #d1d5db; background: #111827; border-bottom-color: #374151;
+}
+table.crm tbody td { padding: .75rem 1rem; border-bottom: 1px solid #f3f4f6; vertical-align: middle; color: #111827; }
+.dark table.crm tbody td { border-bottom-color: #374151; color: #f3f4f6; }
 table.crm tbody tr:last-child td { border-bottom: none; }
 table.crm tbody tr:hover { background: #fafafa; }
+.dark table.crm tbody tr:hover { background: #1f2937; }
 
 /* Prevent the body itself from scrolling horizontally — wide tables
    must scroll inside their own container, never push the page sideways. */
@@ -69,11 +97,17 @@ html, body { overflow-x: hidden; max-width: 100vw; }
   position: sticky; top: 0; z-index: 10;
   box-shadow: inset 0 -1px 0 #e5e7eb;
 }
+.dark .table-scroll table.crm thead th {
+  box-shadow: inset 0 -1px 0 #374151;
+}
 /* Always-visible scrollbars on the scrollable table area */
 .table-scroll::-webkit-scrollbar { height: 12px; width: 10px; }
 .table-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+.dark .table-scroll::-webkit-scrollbar-track { background: #1f2937; }
 .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; border: 2px solid #f1f5f9; }
+.dark .table-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-color: #1f2937; }
 .table-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.dark .table-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
 /* Compact table — for wide multi-column tables (Contacts, Companies) */
 table.crm.crm-compact { table-layout: fixed; }
@@ -105,8 +139,11 @@ table.crm.crm-compact td > span.truncate { max-width: 100%; }
   border-radius: .375rem; font-size: .875rem; color: #4b5563; font-weight: 500;
   transition: background .15s, color .15s; text-decoration: none;
 }
+.dark .nav-item { color: #9ca3af; }
 .nav-item:hover       { background: #f3f4f6; color: #111827; }
+.dark .nav-item:hover { background: #374151; color: #f3f4f6; }
 .nav-item.active      { background: #eef2ff; color: #4f46e5; }
+.dark .nav-item.active { background: #1e3a8a; color: #60a5fa; }
 .nav-item svg         { flex-shrink: 0; opacity: .7; }
 .nav-item.active svg  { opacity: 1; }
 

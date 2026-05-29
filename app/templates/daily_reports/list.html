@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Daily Reports – Radixsol CRM{% endblock %}
+{% block content %}
+<div class="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+  <div>
+    <h1 class="text-xl font-semibold">Daily Reports</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ reports | length }} report{% if (reports | length) != 1 %}s{% endif %}</p>
+  </div>
+  <a href="/daily-reports/new" class="btn btn-primary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Report
+  </a>
+</div>
+
+<!-- Table -->
+<div class="card">
+  {% if reports %}
+    <div class="table-scroll">
+    <table class="crm crm-compact">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Client</th>
+          <th>Accounts</th>
+          <th>Emails</th>
+          <th>Calls/Texts</th>
+          <th>Meetings</th>
+          <th>LinkedIn</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+          <tr>
+            <td class="whitespace-nowrap">{{ report.report_date | date }}</td>
+            <td>{{ report.client_name or '—' }}</td>
+            <td class="text-center">{{ report.accounts_worked }}</td>
+            <td class="text-center">{{ report.emails_sent }}</td>
+            <td class="text-center">{{ report.calls_dialed }}</td>
+            <td class="text-center">{{ report.meetings_set + report.meetings_attended }}</td>
+            <td class="text-center">{{ report.linkedin_requests_sent + report.linkedin_connections }}</td>
+            <td>
+              <a href="/daily-reports/{{ report.id }}" class="btn btn-ghost btn-sm">View</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  {% else %}
+    <div class="py-16 text-center">
+      <svg class="w-12 h-12 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/></svg>
+      <p class="text-slate-500 font-medium mb-1">No reports yet</p>
+      <p class="text-slate-400 text-sm mb-4">Start tracking your daily activity.</p>
+      <a href="/daily-reports/new" class="btn btn-primary">Create First Report</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -137,18 +137,37 @@ def _compute_penetration(db: Session, client: Client) -> dict:
 
 @router.get("")
 def clients_list(request: Request, search: str = "", type_: str = "", user: User = Depends(require_user), db: Session = Depends(get_db)):
+    # Get formal Client records
     q = _client_query(db, user)
     if search:
         q = q.filter(Client.name.ilike(f"%{search}%"))
     if type_:
         q = q.filter(Client.type == type_)
     clients = q.order_by(Client.name).all()
+
+    # Also get informal companies (from Lead.company field without a formal Client)
+    informal_companies_query = db.query(
+        Lead.company,
+        Lead.client_id,
+        func.count(Lead.id).label('contact_count')
+    ).filter(
+        Lead.company.isnot(None),
+        Lead.client_id.is_(None)  # Only companies without formal Client records
+    ).group_by(Lead.company, Lead.client_id)
+
+    if search:
+        informal_companies_query = informal_companies_query.filter(Lead.company.ilike(f"%{search}%"))
+
+    informal_companies = informal_companies_query.order_by(Lead.company).all()
+
     scores = _compute_opportunity_scores(db, clients)
     # Sort by score descending so highest-opportunity accounts surface
     clients = sorted(clients, key=lambda c: -(scores.get(c.id, {}).get("score", 0)))
+
     return templates.TemplateResponse(request, "clients/list.html", {
         "user": user, "flash": get_flash(request),
         "clients": clients, "types": list(ClientType),
+        "informal_companies": informal_companies,
         "filter_type": type_, "search": search,
         "scores": scores,
     })

@@ -4,7 +4,7 @@
 <div class="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
   <div>
     <h1 class="text-xl font-semibold">Companies</h1>
-    <p class="text-sm text-slate-500 mt-0.5">{{ clients | length }} compan{% if clients | length == 1 %}y{% else %}ies{% endif %}{% if search or filter_type %} (filtered){% endif %}</p>
+    <p class="text-sm text-slate-500 mt-0.5">{{ clients | length + (informal_companies | length if informal_companies else 0) }} compan{% if (clients | length + (informal_companies | length if informal_companies else 0)) == 1 %}y{% else %}ies{% endif %}{% if search or filter_type %} (filtered){% endif %}</p>
   </div>
   <div class="flex gap-2">
     <a href="/import/clients/import" class="btn btn-secondary">
@@ -104,6 +104,65 @@
             </td>
           </tr>
         {% endfor %}
+        {% if informal_companies %}
+          {% for company_name, client_id, contact_count in informal_companies %}
+          <tr class="opacity-75">
+            <td>—</td>
+            <td>
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
+                  style="background:hsl({{ (company_name | length * 53) % 360 }},50%,50%)">
+                  {{ company_name[:2].upper() }}
+                </div>
+                <span class="font-medium text-slate-900" title="{{ company_name }}">{{ company_name }}</span>
+                <span class="badge bg-amber-100 text-amber-700 text-xs">Not Created</span>
+              </div>
+            </td>
+            <td>—</td>
+            <td class="text-slate-500">—</td>
+            <td class="text-slate-500">—</td>
+            <td class="text-slate-500">—</td>
+            <td class="text-slate-500 text-center">{{ contact_count }}</td>
+            <td class="text-slate-500 text-center">—</td>
+            <td class="text-slate-500">—</td>
+            <td class="text-slate-500 text-xs">—</td>
+            <td>
+              <button class="btn btn-primary btn-sm" onclick="createCompany('{{ company_name }}')">Create</button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% endif %}
+      </tbody>
+    </table>
+    </div>
+  {% elif informal_companies %}
+    <div class="table-scroll">
+    <table class="crm crm-compact">
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Contacts</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for company_name, client_id, contact_count in informal_companies %}
+        <tr>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
+                style="background:hsl({{ (company_name | length * 53) % 360 }},50%,50%)">
+                {{ company_name[:2].upper() }}
+              </div>
+              <span class="font-medium text-slate-900">{{ company_name }}</span>
+            </div>
+          </td>
+          <td class="text-center">{{ contact_count }}</td>
+          <td><span class="badge bg-amber-100 text-amber-700">Not Created</span></td>
+          <td><button class="btn btn-primary btn-sm" onclick="createCompany('{{ company_name }}')">Create</button></td>
+        </tr>
+        {% endfor %}
       </tbody>
     </table>
     </div>
@@ -116,4 +175,11 @@
     </div>
   {% endif %}
 </div>
+
+<script>
+function createCompany(name) {
+  // Redirect to new company form with pre-filled name
+  window.location.href = '/clients/new?name=' + encodeURIComponent(name);
+}
+</script>
 {% endblock %}

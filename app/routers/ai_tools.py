@@ -1101,6 +1101,11 @@ async def outreach_insights(
             lead.outreach_classified_at = now
         db.commit()
 
+        # Auto-transition status based on engagement classification
+        from app.services.lead_intelligence import auto_transition_on_classification
+        for lead in to_classify:
+            auto_transition_on_classification(db, lead.id)
+
     # Build view rows from the now-cached fields
     rows = []
     for lead in leads:

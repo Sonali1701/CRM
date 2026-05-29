@@ -74,7 +74,13 @@
             <!-- Name + Company -->
             <td class="px-4 py-3">
               <div class="font-medium text-slate-900">{{ lead.name }}</div>
-              {% if lead.company %}<div class="text-xs text-slate-500 mt-0.5">{{ lead.company }}</div>{% endif %}
+              {% if lead.company %}
+                {% if lead.client_id %}
+                  <a href="/companies/{{ lead.client_id }}" class="text-xs text-blue-600 hover:underline mt-0.5 block">{{ lead.company }}</a>
+                {% else %}
+                  <div class="text-xs text-slate-500 mt-0.5">{{ lead.company }}</div>
+                {% endif %}
+              {% endif %}
               {% if lead.email %}<div class="text-xs text-slate-500">{{ lead.email }}</div>{% endif %}
             </td>
 

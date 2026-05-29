@@ -45,6 +45,18 @@
   </div>
   {% endif %}
 
+  {% if lead and lead.client_id %}
+  <div class="card p-4 mb-5 bg-blue-50 border border-blue-200">
+    <p class="text-sm text-blue-900">
+      <strong>Company:</strong>
+      <a href="/companies/{{ lead.client_id }}" class="font-medium text-blue-600 hover:underline">{{ lead.client.name if lead.client else 'Unknown' }}</a>
+      <span class="text-xs text-blue-600 ml-2">
+        <a href="/companies/{{ lead.client_id }}" class="hover:underline">View company</a>
+      </span>
+    </p>
+  </div>
+  {% endif %}
+
   <div class="card p-6">
     <form method="post" action="{{ '/leads/' + (lead.id | string) if lead else '/leads/new' }}" class="space-y-5">
 

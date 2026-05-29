@@ -9,7 +9,7 @@ from app.flash import get_flash, clear_flash_response
 from app.routers import (
     auth, leads, clients, deals, activities, dashboard, users, pipeline, imports, mail,
     email_templates, sequences, reports, cron, ai_tools, settings as settings_router,
-    funnel, notifications, sales_hub,
+    funnel, notifications, sales_hub, admin,
 )
 from app.routers import auto_sync as auto_sync_router
 
@@ -83,6 +83,7 @@ app.include_router(ai_tools.router, prefix="/ai-tools")
 app.include_router(settings_router.router, prefix="/settings")
 app.include_router(auto_sync_router.router)
 app.include_router(sales_hub.router)
+app.include_router(admin.router)
 
 
 @app.exception_handler(AuthRedirect)

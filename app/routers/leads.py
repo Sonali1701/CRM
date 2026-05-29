@@ -228,6 +228,15 @@ def lead_create(
         notify_assignment(db, assignee_id=lead.owner_id, assigned_by_id=user.id,
                           entity_type="contact", entity_name=lead.name, link=f"/leads/{lead.id}")
     db.commit()
+
+    # Log action
+    from app.services.audit import log_action
+    log_action(
+        db, user, "create_lead", "lead",
+        entity_id=lead.id,
+        details={"name": lead.name, "email": lead.email, "company": lead.company}
+    )
+
     return flash(RedirectResponse("/leads", 303), "Contact created.")
 
 

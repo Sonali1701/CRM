@@ -455,6 +455,15 @@ def _import_leads(rows: list[dict], mapping: dict, user: User, db: Session) -> d
         })
 
     db.commit()
+
+    # Log action
+    if imported:
+        from app.services.audit import log_action
+        log_action(
+            db, user, "import_leads", "import",
+            details={"count": len(imported), "skipped": len(skipped)}
+        )
+
     return {"imported": imported, "skipped": skipped}
 
 
@@ -692,6 +701,9 @@ def _sync_leads_from_excel(rows: list[dict], mapping: dict, user: User, db: Sess
             if raw_note and raw_note not in (existing.notes or ""):
                 existing.notes = ((existing.notes + "\n\n") if existing.notes else "") + raw_note
                 existing.outreach_notes_hash = None
+                # Classify notes using NLP
+                from app.services.nlp_classifier import classify_notes
+                existing.outreach_category = classify_notes(existing.notes)
 
             updated.append({"name": existing.name, "id": existing.id})
 
@@ -749,6 +761,10 @@ def _sync_leads_from_excel(rows: list[dict], mapping: dict, user: User, db: Sess
                 status=new_status or LeadStatus.NEW,
                 owner_id=user.id,
             )
+            # Classify notes using NLP on creation
+            if notes_val:
+                from app.services.nlp_classifier import classify_notes
+                lead.outreach_category = classify_notes(notes_val)
             db.add(lead)
             db.flush()
             if email_val:
@@ -784,6 +800,14 @@ def _sync_leads_from_excel(rows: list[dict], mapping: dict, user: User, db: Sess
     for lead_id in lead_ids_with_activities:
         update_next_follow_up_cache(db, lead_id)
         auto_transition_on_activity(db, lead_id)
+
+    # Log action
+    if created or updated:
+        from app.services.audit import log_action
+        log_action(
+            db, user, "excel_sync", "import",
+            details={"created": len(created), "updated": len(updated), "activities": len(activities_added), "skipped": len(skipped)}
+        )
 
     return {"created": created, "updated": updated, "activities": activities_added, "skipped": skipped}
 

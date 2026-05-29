@@ -1,14 +1,14 @@
 """
-Auto-classify lead outreach notes and transition status based on engagement.
+Auto-classify lead outreach notes using NLP and transition status based on engagement.
 
 This runs when:
 - Notes are updated (Excel sync, manual edit)
 - Activities are created (email sent, follow-up logged)
 
-Classifies using AI, then auto-transitions status:
+Classifies using lightweight NLP (no AI quota), then auto-transitions status:
 - "positive" → "qualified" (active interest, next step agreed)
 - "reconnect_later" → stays "contacted" (they want to be pinged later)
-- "not_interested_now", "in_house_only" → "disqualified" (explicit decline)
+- "decline", "in_house_only" → "disqualified" (explicit decline)
 - Others → stays in current status
 """
 import hashlib
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.lead import Lead, LeadStatus
-from app.services.ai_compose import classify_outreach_notes
+from app.services.nlp_classifier import classify_notes
 
 
 def _hash_notes(text: str | None) -> str:
@@ -52,6 +52,23 @@ def auto_transition_on_classification(db: Session, lead_id: int):
     # else: info_sent, out_of_org, no_outcome → keep current status
 
     db.commit()
+
+
+def classify_and_transition(db: Session, lead: Lead, notes: str):
+    """
+    Classify notes using NLP, update lead's outreach_category,
+    and auto-transition status.
+    Call this when notes are updated (sync, manual edit, etc).
+    """
+    if not notes or not notes.strip():
+        return
+
+    category = classify_notes(notes)
+    lead.outreach_category = category
+    lead.updated_at = datetime.now(timezone.utc)
+
+    # Auto-transition based on classification
+    auto_transition_on_classification(db, lead.id)
 
 
 def get_engagement_score(lead: Lead) -> int:

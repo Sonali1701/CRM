@@ -14,6 +14,7 @@ from app.models.sales_planning import (
     MEDDIC_DIMENSIONS,
 )
 from app.models.auto_sync import AutoSyncConfig
+from app.models.audit_log import AuditLog
 
 __all__ = [
     "User",
@@ -43,4 +44,5 @@ __all__ = [
     "ClosePlanStepStatus",
     "MEDDIC_DIMENSIONS",
     "AutoSyncConfig",
+    "AuditLog",
 ]

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi.templating import Jinja2Templates
 
 from app.models.deal import STAGE_LABELS, PIPELINE_STAGES, OPEN_STAGES, DealStage
+from app.flash import get_flash
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -48,4 +49,5 @@ templates.env.globals["STAGE_LABELS"] = STAGE_LABELS
 templates.env.globals["PIPELINE_STAGES"] = PIPELINE_STAGES
 templates.env.globals["OPEN_STAGES"] = OPEN_STAGES
 templates.env.globals["DealStage"] = DealStage
+templates.env.globals["get_flash"] = get_flash
 templates.env.globals["now"] = lambda: datetime.now(timezone.utc).timestamp()

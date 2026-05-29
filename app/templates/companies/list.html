@@ -48,26 +48,30 @@
                     <th>Website</th>
                     <th>Contacts</th>
                     <th>Owner</th>
-                    <th>Added</th>
+                    <th>Status</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in companies_data %}
-                <tr onclick="window.location.href='/companies/{{ item.company.id }}'" style="cursor: pointer;">
+                <tr {% if item.is_formal %}onclick="window.location.href='/companies/{{ item.company.id }}'" style="cursor: pointer;"{% endif %}>
                     <td>
-                        <strong>{{ item.company.name }}</strong>
+                        <strong>{{ item.company_name }}</strong>
+                        {% if not item.is_formal %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning-emphasis ms-2">Not Created</span>
+                        {% endif %}
                     </td>
                     <td>
-                        {% if item.company.industry %}
-                            <small class="text-muted">{{ item.company.industry }}</small>
+                        {% if item.industry %}
+                            <small class="text-muted">{{ item.industry }}</small>
                         {% else %}
                             <small class="text-muted">—</small>
                         {% endif %}
                     </td>
                     <td>
-                        {% if item.company.website %}
-                            <a href="{{ item.company.website }}" target="_blank" class="text-decoration-none">
-                                {{ item.company.website[:30] }}...
+                        {% if item.website %}
+                            <a href="{{ item.website }}" target="_blank" class="text-decoration-none">
+                                {{ item.website[:30] }}...
                             </a>
                         {% else %}
                             <small class="text-muted">—</small>
@@ -77,16 +81,39 @@
                         <span class="badge bg-info">{{ item.contact_count }}</span>
                     </td>
                     <td>
-                        <small>{{ item.company.owner.full_name if item.company.owner else '—' }}</small>
+                        {% if item.company %}
+                            <small>{{ item.company.owner.full_name if item.company.owner else '—' }}</small>
+                        {% else %}
+                            <small class="text-muted">—</small>
+                        {% endif %}
                     </td>
                     <td>
-                        <small class="text-muted">{{ item.company.created_at.strftime('%b %d, %Y') }}</small>
+                        {% if item.is_formal %}
+                            <span class="badge bg-success">Formal</span>
+                        {% else %}
+                            <span class="badge bg-secondary">From Contacts</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.is_formal %}
+                            <a href="/companies/{{ item.company.id }}" class="btn btn-sm btn-outline-primary">View</a>
+                        {% else %}
+                            <button class="btn btn-sm btn-primary" onclick="createCompany('{{ item.company_name }}')">Create</button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+    <script>
+    function createCompany(name) {
+        // For now, just redirect to new company form with pre-filled name
+        // You'd need to create a /clients/new endpoint for this
+        alert('Company creation not yet implemented. This feature is coming soon.');
+    }
+    </script>
 
     <!-- Pagination -->
     {% if total_pages > 1 %}

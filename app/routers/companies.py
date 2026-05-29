@@ -23,28 +23,65 @@ def companies_list(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    """List all companies with contact count."""
-    q = db.query(Client)
+    """List all companies (formal records + unique companies from contacts) with contact count."""
+    from sqlalchemy import distinct, union_all
+
+    # Get formal company records with their linked contact counts
+    formal_companies = db.query(
+        Client.id,
+        Client.name,
+        Client.industry,
+        Client.website,
+        Client.created_at,
+        Client.owner_id,
+        func.count(distinct(Lead.id)).label('contact_count'),
+        func.cast(Client.id, db.Integer).label('client_id'),
+        func.cast(1, db.Integer).label('is_formal')
+    ).outerjoin(Lead, Lead.client_id == Client.id)
 
     if search:
         like = f"%{search}%"
-        q = q.filter(or_(Client.name.ilike(like), Client.industry.ilike(like)))
+        formal_companies = formal_companies.filter(
+            or_(Client.name.ilike(like), Client.industry.ilike(like))
+        )
+
+    formal_companies = formal_companies.group_by(Client.id, Client.name, Client.industry, Client.website, Client.created_at, Client.owner_id)
+
+    # Get informal companies (from Lead.company field) without a formal Client record
+    informal_companies = db.query(
+        func.cast(None, db.Integer).label('id'),
+        Lead.company.label('name'),
+        func.cast(None, db.String).label('industry'),
+        func.cast(None, db.String).label('website'),
+        func.cast(None, db.DateTime).label('created_at'),
+        func.cast(None, db.Integer).label('owner_id'),
+        func.count(distinct(Lead.id)).label('contact_count'),
+        func.cast(None, db.Integer).label('client_id'),
+        func.cast(0, db.Integer).label('is_formal')
+    ).filter(
+        Lead.company.isnot(None),
+        Lead.client_id.is_(None)  # Only companies without formal Client records
+    )
+
+    if search:
+        like = f"%{search}%"
+        informal_companies = informal_companies.filter(Lead.company.ilike(like))
+
+    informal_companies = informal_companies.group_by(Lead.company)
+
+    # Combine both queries
+    all_companies = formal_companies.union_all(informal_companies).subquery()
+
+    # Query combined results
+    q = db.query(all_companies)
 
     # Sort options
     if sort == "contacts":
-        # Sort by contact count (requires subquery)
-        from sqlalchemy import and_
-        contact_count = (
-            db.query(func.count(Lead.id))
-            .filter(Lead.client_id == Client.id)
-            .correlate(Client)
-            .scalar_subquery()
-        )
-        q = q.order_by(contact_count.desc())
+        q = q.order_by(all_companies.c.contact_count.desc())
     elif sort == "name":
-        q = q.order_by(Client.name)
+        q = q.order_by(all_companies.c.name)
     else:  # newest
-        q = q.order_by(Client.created_at.desc())
+        q = q.order_by(all_companies.c.created_at.desc().nulls_last())
 
     # Pagination: 50 per page
     per_page = 50
@@ -55,13 +92,20 @@ def companies_list(
 
     companies = q.offset(offset).limit(per_page).all()
 
-    # Get contact counts for each company
+    # Format results
     companies_data = []
-    for company in companies:
-        contact_count = db.query(Lead).filter(Lead.client_id == company.id).count()
+    for row in companies:
+        company_obj = None
+        if row.id:  # Formal company
+            company_obj = db.query(Client).filter(Client.id == row.id).first()
+
         companies_data.append({
-            "company": company,
-            "contact_count": contact_count,
+            "company": company_obj,
+            "company_name": row.name,
+            "industry": row.industry,
+            "website": row.website,
+            "is_formal": row.is_formal == 1,
+            "contact_count": row.contact_count or 0,
         })
 
     return templates.TemplateResponse(request, "companies/list.html", {
